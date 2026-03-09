@@ -46,13 +46,21 @@
   "homepage": "https://github.com/AaronBidworthy/agent-runner#readme",
   "author": "Aaron Bidworthy",
   "dependencies": {
-    "@ai-sdk/anthropic": "^1.0.0",
-    "@ai-sdk/google": "^1.0.0",
-    "@ai-sdk/openai": "^1.0.0",
-    "@modelcontextprotocol/sdk": "^1.27.1",
     "ai": "^4.3.0",
     "nanoid": "^5.1.0",
     "zod": "^3.24.0"
+  },
+  "peerDependencies": {
+    "@ai-sdk/anthropic": "^1.0.0",
+    "@ai-sdk/google": "^1.0.0",
+    "@ai-sdk/openai": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@ai-sdk/anthropic": { "optional": true },
+    "@ai-sdk/google": { "optional": true },
+    "@ai-sdk/openai": { "optional": true },
+    "@modelcontextprotocol/sdk": { "optional": true }
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
