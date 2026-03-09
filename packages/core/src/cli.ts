@@ -30,9 +30,16 @@ Options:
   -h, --help        Show help
   -v, --version     Show version
 
+Eval Options:
+  --json            Output results as JSON (one line per agent)
+  --all             Run evals for all agents with eval configs
+  --threshold <n>   Override pass threshold (0-1)
+
 Examples:
   agent-runner init
   agent-runner invoke greeter "Hello!"
+  agent-runner eval support --json
+  agent-runner eval --all --threshold 0.8
   agent-runner studio
 `.trim();
 
@@ -200,12 +207,25 @@ async function cmdInvoke(args: string[]) {
 // ═══════════════════════════════════════════════════════════════════
 
 async function cmdEval(args: string[]) {
-  if (args.length < 1) {
-    console.error("Usage: agent-runner eval <agentId>");
-    process.exit(1);
+  // Parse flags
+  const jsonMode = args.includes("--json");
+  const allMode = args.includes("--all");
+  const filteredArgs = args.filter((a) => a !== "--json" && a !== "--all");
+
+  // Parse --threshold <value>
+  let thresholdOverride: number | undefined;
+  const thresholdIdx = filteredArgs.indexOf("--threshold");
+  if (thresholdIdx !== -1) {
+    thresholdOverride = parseFloat(filteredArgs[thresholdIdx + 1]);
+    filteredArgs.splice(thresholdIdx, 2);
   }
 
-  const agentId = args[0];
+  const agentId = filteredArgs[0];
+
+  if (!agentId && !allMode) {
+    console.error("Usage: agent-runner eval <agentId> [--json] [--threshold <0-1>] [--all]");
+    process.exit(1);
+  }
 
   const configPath = resolve(process.cwd(), "agent-runner.config.ts");
   if (!existsSync(configPath)) {
@@ -222,35 +242,84 @@ async function cmdEval(args: string[]) {
       process.exit(1);
     }
 
-    console.log(`🧪 Running evals for "${agentId}"...\n`);
+    // Determine which agents to eval
+    let agentIds: string[];
+    if (allMode) {
+      // Get all agents that have eval configs
+      const agents = await runner.listAgents?.() ?? [];
+      agentIds = agents
+        .filter((a: any) => a.eval?.testCases?.length > 0)
+        .map((a: any) => a.id);
+      if (agentIds.length === 0) {
+        console.error("❌ No agents with eval configs found.");
+        process.exit(1);
+      }
+    } else {
+      agentIds = [agentId];
+    }
 
-    const result = await runner.eval(agentId, {
-      onProgress: (completed: number, total: number, name: string) => {
-        if (name !== "done") {
-          console.log(`  [${completed + 1}/${total}] ${name}...`);
+    let totalFailed = 0;
+    const allResults: any[] = [];
+
+    for (const id of agentIds) {
+      if (!jsonMode) {
+        console.log(`🧪 Running evals for "${id}"...\n`);
+      }
+
+      const result = await runner.eval(id, {
+        onProgress: !jsonMode
+          ? (completed: number, total: number, name: string) => {
+              if (name !== "done") {
+                console.log(`  [${completed + 1}/${total}] ${name}...`);
+              }
+            }
+          : undefined,
+      });
+
+      // Apply threshold override
+      if (thresholdOverride !== undefined) {
+        for (const tc of result.testCases) {
+          tc.passed = tc.score >= thresholdOverride;
         }
-      },
-    });
+        result.summary.passed = result.testCases.filter((tc: any) => tc.passed).length;
+        result.summary.failed = result.summary.total - result.summary.passed;
+        result.summary.score =
+          result.testCases.reduce((sum: number, tc: any) => sum + tc.score, 0) /
+          result.summary.total;
+      }
 
-    // Print results
-    console.log("");
-    for (const tc of result.testCases) {
-      const icon = tc.passed ? "✅" : "❌";
-      console.log(`${icon} ${tc.name} (score: ${(tc.score * 100).toFixed(0)}%)`);
-      for (const a of tc.assertions) {
-        const aIcon = a.passed ? "  ✓" : "  ✗";
-        console.log(`${aIcon} [${a.type}] ${a.reason ?? ""}`);
+      allResults.push({ agentId: id, ...result });
+      totalFailed += result.summary.failed;
+
+      if (jsonMode) {
+        // JSON output — one line per agent
+        console.log(JSON.stringify({ agentId: id, ...result }));
+      } else {
+        // Human-readable output
+        console.log("");
+        for (const tc of result.testCases) {
+          const icon = tc.passed ? "✅" : "❌";
+          console.log(`${icon} ${tc.name} (score: ${(tc.score * 100).toFixed(0)}%)`);
+          for (const a of tc.assertions) {
+            const aIcon = a.passed ? "  ✓" : "  ✗";
+            console.log(`${aIcon} [${a.type}] ${a.reason ?? ""}`);
+          }
+        }
+
+        console.log(`\n─── Summary ───`);
+        console.log(`Total:    ${result.summary.total}`);
+        console.log(`Passed:   ${result.summary.passed}`);
+        console.log(`Failed:   ${result.summary.failed}`);
+        console.log(`Score:    ${(result.summary.score * 100).toFixed(1)}%`);
+        console.log(`Duration: ${result.duration}ms`);
+
+        if (agentIds.length > 1) {
+          console.log("");
+        }
       }
     }
 
-    console.log(`\n─── Summary ───`);
-    console.log(`Total:    ${result.summary.total}`);
-    console.log(`Passed:   ${result.summary.passed}`);
-    console.log(`Failed:   ${result.summary.failed}`);
-    console.log(`Score:    ${(result.summary.score * 100).toFixed(1)}%`);
-    console.log(`Duration: ${result.duration}ms`);
-
-    if (result.summary.failed > 0) {
+    if (totalFailed > 0) {
       process.exit(1);
     }
   } catch (error) {
