@@ -264,9 +264,52 @@ async function cmdEval(args: string[]) {
 // ═══════════════════════════════════════════════════════════════════
 
 async function cmdStudio() {
-  console.log("🎨 Studio is coming in Phase 3!");
-  console.log("   Install @agent-runner/studio when it's available.");
-  process.exit(0);
+  const configPath = resolve(process.cwd(), "agent-runner.config.ts");
+
+  // Try to load the runner from config
+  let runner: any;
+  try {
+    if (existsSync(configPath)) {
+      const config = await import(configPath);
+      runner = config.default;
+    }
+  } catch {
+    // Config load failed — will create a default runner
+  }
+
+  if (!runner) {
+    // Create a minimal runner with the default stores
+    const { createRunner } = await import("./runner.js");
+    runner = createRunner({
+      defaults: { model: { provider: "openai", name: "gpt-4o-mini" } },
+    });
+    console.log("⚠️  No agent-runner.config.ts found. Using default runner.\n");
+  }
+
+  // Try to import the studio package
+  try {
+    const studioModule = await import(/* @vite-ignore */ "@agent-runner/studio" as string)
+      .catch(() => null);
+    if (!studioModule) throw new Error("Cannot find @agent-runner/studio");
+    const { createStudio } = studioModule;
+    const port = parseInt(process.env.PORT || "4000", 10);
+
+    await createStudio(runner, {
+      port,
+      onReady: (url: string) => {
+        console.log(`\n  ⚡ agent-runner Studio`);
+        console.log(`  ➜ ${url}\n`);
+      },
+    });
+  } catch (err) {
+    if (String(err).includes("Cannot find")) {
+      console.error("❌ @agent-runner/studio is not installed.");
+      console.error("   Install it: pnpm add -D @agent-runner/studio");
+    } else {
+      console.error(`❌ Failed to start Studio: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {
