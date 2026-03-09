@@ -354,6 +354,11 @@ export interface GenerateTextOptions {
     description: string;
     parameters: Record<string, unknown>;
   }>;
+  /** JSON Schema for structured output */
+  outputSchema?: {
+    name: string;
+    schema: Record<string, unknown>;
+  };
   signal?: AbortSignal;
 }
 

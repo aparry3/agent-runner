@@ -207,11 +207,17 @@ export class Runner {
         throw new Error("Invocation was cancelled");
       }
 
+      // Build output schema if the agent defines one
+      const outputSchema = agent.outputSchema
+        ? { name: `${agent.id}_output`, schema: agent.outputSchema }
+        : undefined;
+
       // Call the model
       const result = await this.modelProvider.generateText({
         model: modelConfig,
         messages,
         tools: availableTools.length > 0 ? availableTools : undefined,
+        outputSchema,
         signal: options.signal,
       });
 
@@ -350,6 +356,8 @@ export class Runner {
 
   /**
    * Resolve the tools available to an agent based on its tools[] references.
+   * Returns tool metadata for the model AND registers ephemeral agent-tools
+   * in the registry so they can be executed during the invoke loop.
    */
   private resolveToolsForAgent(agent: AgentDefinition): Array<{
     name: string;
@@ -374,11 +382,69 @@ export class Runner {
             parameters: info.inputSchema,
           });
         }
+      } else if (ref.type === "agent") {
+        const toolInfo = this.resolveAgentAsTool(ref.agentId);
+        if (toolInfo) {
+          resolved.push(toolInfo);
+        }
       }
-      // TODO: MCP and agent tool resolution (Phase 2)
+      // TODO: MCP tool resolution (Phase 2)
     }
 
     return resolved;
+  }
+
+  /**
+   * Resolve an agent-as-tool reference. Creates a synthetic tool in the registry
+   * that invokes the target agent when called.
+   */
+  private resolveAgentAsTool(agentId: string): {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  } | null {
+    const toolName = `invoke_${agentId}`;
+
+    // If already registered (from a previous resolve), just return the info
+    const existing = this.toolRegistry.get(toolName);
+    if (existing) {
+      return {
+        name: existing.name,
+        description: existing.description,
+        parameters: existing.inputSchema,
+      };
+    }
+
+    // Look up the target agent to get its description
+    const targetAgent = this.registeredAgents.get(agentId);
+    const description = targetAgent
+      ? `Invoke the "${targetAgent.name}" agent: ${targetAgent.description ?? targetAgent.systemPrompt.slice(0, 100)}`
+      : `Invoke the "${agentId}" agent`;
+
+    // Dynamically import zod to create the schema
+    // We use a simple schema: { input: string }
+    const { z } = require("zod");
+
+    const agentTool: ToolDefinition = {
+      name: toolName,
+      description,
+      input: z.object({
+        input: z.string().describe("The input/question to send to the agent"),
+      }),
+      async execute(input: { input: string }, ctx: ToolContext) {
+        const result = await ctx.invoke(agentId, input.input);
+        return { output: result.output, toolCalls: result.toolCalls.length };
+      },
+    };
+
+    this.toolRegistry.register(agentTool);
+
+    const info = this.toolRegistry.get(toolName);
+    return info ? {
+      name: info.name,
+      description: info.description,
+      parameters: info.inputSchema,
+    } : null;
   }
 }
 

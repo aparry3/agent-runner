@@ -262,6 +262,155 @@ describe("Runner", () => {
     expect(systemMsg.content).toContain("MCP is a protocol");
   });
 
+  it("resolves agent-as-tool references", async () => {
+    // Two-step: researcher model returns result, writer model uses it
+    const provider = new MockModelProvider([
+      // Writer's first call — wants to invoke researcher
+      {
+        text: "",
+        toolCalls: [{
+          id: "call_1",
+          name: "invoke_researcher",
+          args: { input: "Find info about TypeScript" },
+        }],
+        usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+        finishReason: "tool-calls",
+      },
+      // Researcher's response (called by the agent-tool)
+      mockResponse("TypeScript is a typed superset of JavaScript."),
+      // Writer's final response after getting research
+      mockResponse("Article: TypeScript is a typed superset of JavaScript, created by Microsoft."),
+    ]);
+
+    const runner = createRunner({ modelProvider: provider });
+
+    runner.registerAgent(
+      defineAgent({
+        id: "researcher",
+        name: "Researcher",
+        description: "Researches topics thoroughly",
+        systemPrompt: "You research topics and return concise findings.",
+        model: { provider: "openai", name: "gpt-4o" },
+      })
+    );
+
+    runner.registerAgent(
+      defineAgent({
+        id: "writer",
+        name: "Writer",
+        systemPrompt: "Write articles. Use the researcher to gather facts first.",
+        model: { provider: "openai", name: "gpt-4o" },
+        tools: [{ type: "agent", agentId: "researcher" }],
+      })
+    );
+
+    const result = await runner.invoke("writer", "Write about TypeScript");
+
+    expect(result.output).toBe("Article: TypeScript is a typed superset of JavaScript, created by Microsoft.");
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.toolCalls[0].name).toBe("invoke_researcher");
+    expect(result.toolCalls[0].output).toEqual({
+      output: "TypeScript is a typed superset of JavaScript.",
+      toolCalls: 0,
+    });
+
+    // Model was called 3 times: writer(1st) → researcher → writer(2nd)
+    expect(provider.calls).toHaveLength(3);
+  });
+
+  it("agent-as-tool appears in resolved tools list", async () => {
+    const provider = new MockModelProvider(mockResponse("test"));
+    const runner = createRunner({ modelProvider: provider });
+
+    runner.registerAgent(
+      defineAgent({
+        id: "helper",
+        name: "Helper",
+        description: "A helpful assistant",
+        systemPrompt: "Help people.",
+        model: { provider: "openai", name: "gpt-4o" },
+      })
+    );
+
+    runner.registerAgent(
+      defineAgent({
+        id: "main",
+        name: "Main",
+        systemPrompt: "You can delegate to the helper.",
+        model: { provider: "openai", name: "gpt-4o" },
+        tools: [{ type: "agent", agentId: "helper" }],
+      })
+    );
+
+    // Invoke to trigger tool resolution
+    await runner.invoke("main", "test");
+
+    // The invoke_helper tool should now be in the registry
+    const tools = runner.tools.list();
+    const helperTool = tools.find(t => t.name === "invoke_helper");
+    expect(helperTool).toBeDefined();
+    expect(helperTool!.description).toContain("Helper");
+  });
+
+  it("passes outputSchema to model provider", async () => {
+    const provider = new MockModelProvider(
+      mockResponse('{"sentiment": "positive", "score": 0.95}')
+    );
+
+    const runner = createRunner({ modelProvider: provider });
+
+    runner.registerAgent(
+      defineAgent({
+        id: "analyzer",
+        name: "Sentiment Analyzer",
+        systemPrompt: "Analyze the sentiment of the input text.",
+        model: { provider: "openai", name: "gpt-4o" },
+        outputSchema: {
+          type: "object",
+          properties: {
+            sentiment: { type: "string", enum: ["positive", "negative", "neutral"] },
+            score: { type: "number" },
+          },
+          required: ["sentiment", "score"],
+        },
+      })
+    );
+
+    const result = await runner.invoke("analyzer", "I love this product!");
+
+    expect(result.output).toBe('{"sentiment": "positive", "score": 0.95}');
+
+    // Verify outputSchema was passed to the model provider
+    expect(provider.calls[0].outputSchema).toBeDefined();
+    expect(provider.calls[0].outputSchema!.name).toBe("analyzer_output");
+    expect(provider.calls[0].outputSchema!.schema).toEqual({
+      type: "object",
+      properties: {
+        sentiment: { type: "string", enum: ["positive", "negative", "neutral"] },
+        score: { type: "number" },
+      },
+      required: ["sentiment", "score"],
+    });
+  });
+
+  it("does not pass outputSchema when not defined on agent", async () => {
+    const provider = new MockModelProvider(mockResponse("Hello!"));
+
+    const runner = createRunner({ modelProvider: provider });
+
+    runner.registerAgent(
+      defineAgent({
+        id: "basic",
+        name: "Basic",
+        systemPrompt: "Be basic.",
+        model: { provider: "openai", name: "gpt-4o" },
+      })
+    );
+
+    await runner.invoke("basic", "Hi");
+    expect(provider.calls[0].outputSchema).toBeUndefined();
+  });
+
   it("writes output to context when contextWrite is enabled", async () => {
     const provider = new MockModelProvider(mockResponse("Here are my findings."));
 

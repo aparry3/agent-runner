@@ -9,7 +9,13 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./cli": {
+      "import": "./dist/cli.js"
     }
+  },
+  "bin": {
+    "agent-runner": "./dist/cli.js"
   },
   "files": ["dist"],
   "scripts": {
