@@ -1,0 +1,142 @@
+// ═══════════════════════════════════════════════════════════════════════
+// agent-runner — Typed Errors
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Base error for all agent-runner errors.
+ * Catch this to handle any SDK error.
+ */
+export class AgentRunnerError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "AgentRunnerError";
+    this.code = code;
+  }
+}
+
+/**
+ * Thrown when an agent is not found in registered agents or the store.
+ */
+export class AgentNotFoundError extends AgentRunnerError {
+  readonly agentId: string;
+
+  constructor(agentId: string) {
+    super(
+      "AGENT_NOT_FOUND",
+      `Agent "${agentId}" not found. Register it with runner.registerAgent() or add it to the agent store.`,
+    );
+    this.name = "AgentNotFoundError";
+    this.agentId = agentId;
+  }
+}
+
+/**
+ * Thrown when a tool is not found in the registry.
+ */
+export class ToolNotFoundError extends AgentRunnerError {
+  readonly toolName: string;
+
+  constructor(toolName: string) {
+    super(
+      "TOOL_NOT_FOUND",
+      `Tool "${toolName}" not found in the registry.`,
+    );
+    this.name = "ToolNotFoundError";
+    this.toolName = toolName;
+  }
+}
+
+/**
+ * Thrown when a tool execution fails.
+ */
+export class ToolExecutionError extends AgentRunnerError {
+  readonly toolName: string;
+
+  constructor(toolName: string, cause?: Error) {
+    super(
+      "TOOL_EXECUTION_ERROR",
+      `Tool "${toolName}" execution failed: ${cause?.message ?? "unknown error"}`,
+      { cause },
+    );
+    this.name = "ToolExecutionError";
+    this.toolName = toolName;
+  }
+}
+
+/**
+ * Thrown when the model provider returns an error.
+ */
+export class ModelError extends AgentRunnerError {
+  readonly provider: string;
+  readonly model: string;
+
+  constructor(provider: string, model: string, message: string, cause?: Error) {
+    super(
+      "MODEL_ERROR",
+      `Model error (${provider}/${model}): ${message}`,
+      { cause },
+    );
+    this.name = "ModelError";
+    this.provider = provider;
+    this.model = model;
+  }
+}
+
+/**
+ * Thrown when an unknown model provider is specified.
+ */
+export class ProviderNotFoundError extends AgentRunnerError {
+  readonly provider: string;
+
+  constructor(provider: string) {
+    super(
+      "PROVIDER_NOT_FOUND",
+      `Unknown model provider "${provider}". Supported: openai, anthropic, google. For other providers, pass a custom modelProvider to createRunner().`,
+    );
+    this.name = "ProviderNotFoundError";
+    this.provider = provider;
+  }
+}
+
+/**
+ * Thrown when an invocation is cancelled via AbortSignal.
+ */
+export class InvocationCancelledError extends AgentRunnerError {
+  constructor() {
+    super("INVOCATION_CANCELLED", "Invocation was cancelled.");
+    this.name = "InvocationCancelledError";
+  }
+}
+
+/**
+ * Thrown when the agent execution loop exceeds the max step limit.
+ */
+export class MaxStepsExceededError extends AgentRunnerError {
+  readonly maxSteps: number;
+  readonly agentId: string;
+
+  constructor(agentId: string, maxSteps: number) {
+    super(
+      "MAX_STEPS_EXCEEDED",
+      `Agent "${agentId}" exceeded maximum tool call steps (${maxSteps}). This may indicate an infinite loop.`,
+    );
+    this.name = "MaxStepsExceededError";
+    this.agentId = agentId;
+    this.maxSteps = maxSteps;
+  }
+}
+
+/**
+ * Thrown when agent definition validation fails.
+ */
+export class ValidationError extends AgentRunnerError {
+  readonly details: string[];
+
+  constructor(message: string, details: string[] = []) {
+    super("VALIDATION_ERROR", message);
+    this.name = "ValidationError";
+    this.details = details;
+  }
+}

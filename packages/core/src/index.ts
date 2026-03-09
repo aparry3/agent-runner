@@ -14,6 +14,19 @@ export { JsonFileStore } from "./stores/json-file.js";
 // Model Provider
 export { AISDKModelProvider } from "./model-provider.js";
 
+// Errors
+export {
+  AgentRunnerError,
+  AgentNotFoundError,
+  ToolNotFoundError,
+  ToolExecutionError,
+  ModelError,
+  ProviderNotFoundError,
+  InvocationCancelledError,
+  MaxStepsExceededError,
+  ValidationError,
+} from "./errors.js";
+
 // Types
 export type {
   // Agent
@@ -29,6 +42,8 @@ export type {
   // Invocation
   InvokeOptions,
   InvokeResult,
+  InvokeStream,
+  StreamEvent,
   ToolCallRecord,
   TokenUsage,
 
@@ -62,6 +77,7 @@ export type {
 
   // Model Provider
   ModelProvider,
+  ModelStreamResult,
   GenerateTextOptions,
   GenerateTextResult,
 } from "./types.js";

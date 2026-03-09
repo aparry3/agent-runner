@@ -1,33 +1,384 @@
 # agent-runner
 
-An open-source TypeScript SDK for defining, running, and evaluating AI agents with first-class MCP support and pluggable storage.
+A TypeScript SDK for defining, running, and evaluating AI agents. Agents are portable, JSON-serializable configurations — not code. Plug in any storage backend, any model provider, any tools.
 
-## Status
+```typescript
+import { createRunner, defineAgent } from "agent-runner";
 
-🚧 **In Development** - Being built by Benji
+const runner = createRunner();
 
-## Documentation
+runner.registerAgent(defineAgent({
+  id: "greeter",
+  name: "Greeter",
+  systemPrompt: "You are a friendly greeter. Keep responses under 2 sentences.",
+  model: { provider: "openai", name: "gpt-4o-mini" },
+}));
 
-- [RFC](~/Infinity/projects/agent-runner/RFC.md) - Complete technical specification
-- [Design Doc](~/Infinity/projects/agent-runner/design.md) - Design decisions and patterns
-- Progress tracked in `PROGRESS.md`
+const result = await runner.invoke("greeter", "Hello!");
+console.log(result.output);
+// → "Hey there! Welcome — great to have you here."
+```
 
-## Mission
+## Why agent-runner?
 
-Create a production-ready SDK and Studio that can replace the current gymtext AI system.
+| Problem | agent-runner's answer |
+|---|---|
+| Agents are code, not portable config | Agent definitions are JSON-serializable data |
+| Locked into one storage backend | Pluggable stores (memory, JSON files, SQLite, Postgres) |
+| MCP bolted on as an afterthought | MCP is a first-class tool source |
+| No built-in testing | Eval system with assertions, LLM-as-judge, CI integration |
+| No visual tooling | Built-in Studio UI (`npx agent-runner studio`) |
+| Heavy framework overhead | Minimal library — import what you need |
 
-## Phases
+## Install
 
-1. **Core SDK** - createRunner, invoke, agent definitions, JSON store
-2. **MCP + Tools** - Tool system, MCP integration
-3. **Context + Evals** - Shared context, evaluation framework
-4. **Studio UI** - Development UI for defining/testing agents
-5. **Production Hardening** - Postgres store, edge compatibility, deployment
+```bash
+npm install agent-runner
+```
 
-## Workspace
+Set your API key:
 
-- **Code**: `~/Projects/agent-runner/` (this repo)
-- **Docs**: `~/Infinity/projects/agent-runner/` (RFC, design docs)
-- **Agent**: Benji (via heartbeat every 20 minutes)
+```bash
+export OPENAI_API_KEY=sk-...
+# or ANTHROPIC_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY, etc.
+```
 
-Built with ❤️ by Benji
+## Quick Start
+
+### 1. Basic Agent
+
+```typescript
+import { createRunner, defineAgent } from "agent-runner";
+
+const runner = createRunner();
+
+runner.registerAgent(defineAgent({
+  id: "writer",
+  name: "Writer",
+  systemPrompt: "You write concise, engaging copy.",
+  model: { provider: "openai", name: "gpt-4o" },
+}));
+
+const { output } = await runner.invoke("writer", "Write a tagline for a coffee shop");
+```
+
+### 2. With Tools
+
+```typescript
+import { createRunner, defineAgent, defineTool } from "agent-runner";
+import { z } from "zod";
+
+const lookupOrder = defineTool({
+  name: "lookup_order",
+  description: "Look up an order by ID",
+  input: z.object({
+    orderId: z.string(),
+  }),
+  async execute(input) {
+    return { status: "shipped", eta: "Tomorrow" };
+  },
+});
+
+const runner = createRunner({ tools: [lookupOrder] });
+
+runner.registerAgent(defineAgent({
+  id: "support",
+  name: "Support Agent",
+  systemPrompt: "You help customers with their orders. Use tools to look up order info.",
+  model: { provider: "openai", name: "gpt-4o" },
+  tools: [{ type: "inline", name: "lookup_order" }],
+}));
+
+const result = await runner.invoke("support", "Where's my order #12345?");
+console.log(result.output);
+// → "Your order #12345 has shipped and should arrive tomorrow!"
+console.log(result.toolCalls);
+// → [{ name: "lookup_order", input: { orderId: "12345" }, output: { status: "shipped", eta: "Tomorrow" }, ... }]
+```
+
+### 3. Sessions (Conversational Memory)
+
+```typescript
+// First message
+await runner.invoke("support", "Hi, I need help", { sessionId: "sess_abc" });
+
+// Second message — agent remembers the conversation
+await runner.invoke("support", "My order is #12345", { sessionId: "sess_abc" });
+```
+
+### 4. Streaming
+
+```typescript
+const stream = runner.stream("writer", "Write a short story about a robot");
+
+for await (const event of stream) {
+  if (event.type === "text-delta") {
+    process.stdout.write(event.text);
+  } else if (event.type === "tool-call-start") {
+    console.log(`\nCalling tool: ${event.toolCall.name}`);
+  } else if (event.type === "done") {
+    console.log(`\nDone! Tokens used: ${event.result.usage.totalTokens}`);
+  }
+}
+
+// Or get the final result directly
+const result = await stream.result;
+```
+
+### 5. Agent Chains (Agent-as-Tool)
+
+```typescript
+runner.registerAgent(defineAgent({
+  id: "researcher",
+  name: "Researcher",
+  systemPrompt: "Research topics and return concise findings.",
+  model: { provider: "openai", name: "gpt-4o" },
+}));
+
+runner.registerAgent(defineAgent({
+  id: "writer",
+  name: "Writer",
+  systemPrompt: "Write articles. Delegate research to the researcher.",
+  model: { provider: "anthropic", name: "claude-sonnet-4-20250514" },
+  tools: [{ type: "agent", agentId: "researcher" }],
+}));
+
+// Writer invokes researcher as a tool during execution
+const result = await runner.invoke("writer", "Write about MCP");
+```
+
+### 6. Shared Context
+
+Context lets agents share state without tight coupling:
+
+```typescript
+runner.registerAgent(defineAgent({
+  id: "researcher",
+  name: "Researcher",
+  systemPrompt: "Research topics thoroughly.",
+  model: { provider: "openai", name: "gpt-4o" },
+  contextWrite: true, // Output auto-writes to context
+}));
+
+// Researcher writes findings to context
+await runner.invoke("researcher", "Find info about MCP", {
+  contextIds: ["project-alpha"],
+});
+
+// Writer reads the same context
+await runner.invoke("writer", "Write an article using the research", {
+  contextIds: ["project-alpha"],
+});
+```
+
+### 7. Runtime Tool Context
+
+Pass runtime data to tools without going through the LLM:
+
+```typescript
+const updateProfile = defineTool({
+  name: "update_profile",
+  description: "Update the user's profile",
+  input: z.object({ field: z.string(), value: z.string() }),
+  async execute(input, ctx) {
+    // ctx.user comes from toolContext — injected at runtime
+    await db.users.update(ctx.user.id, { [input.field]: input.value });
+    return { success: true };
+  },
+});
+
+await runner.invoke("chat", message, {
+  toolContext: {
+    user: { id: "u_123", name: "Aaron" },
+  },
+});
+```
+
+### 8. Structured Output
+
+```typescript
+runner.registerAgent(defineAgent({
+  id: "analyzer",
+  name: "Sentiment Analyzer",
+  systemPrompt: "Analyze the sentiment of input text.",
+  model: { provider: "openai", name: "gpt-4o" },
+  outputSchema: {
+    type: "object",
+    properties: {
+      sentiment: { type: "string", enum: ["positive", "negative", "neutral"] },
+      confidence: { type: "number" },
+    },
+    required: ["sentiment", "confidence"],
+  },
+}));
+
+const { output } = await runner.invoke("analyzer", "I love this!");
+const parsed = JSON.parse(output);
+// → { sentiment: "positive", confidence: 0.95 }
+```
+
+## Storage
+
+The default store is in-memory (great for testing). For persistence:
+
+```typescript
+import { createRunner, JsonFileStore } from "agent-runner";
+
+// JSON files — good for local dev
+const runner = createRunner({
+  store: new JsonFileStore("./data"),
+});
+
+// Or split stores by concern
+const runner = createRunner({
+  agentStore: myPostgresStore,
+  sessionStore: myRedisStore,
+  logStore: myElasticsearchStore,
+});
+```
+
+### Store Layout (JSON)
+
+```
+./data/
+├── agents/       # Agent definitions
+├── sessions/     # Conversation histories
+├── context/      # Shared context buckets
+└── logs/         # Invocation logs
+```
+
+### Custom Stores
+
+Implement the store interfaces:
+
+```typescript
+interface AgentStore {
+  getAgent(id: string): Promise<AgentDefinition | null>;
+  listAgents(): Promise<AgentSummary[]>;
+  putAgent(agent: AgentDefinition): Promise<void>;
+  deleteAgent(id: string): Promise<void>;
+}
+
+interface SessionStore {
+  getMessages(sessionId: string): Promise<Message[]>;
+  append(sessionId: string, messages: Message[]): Promise<void>;
+  deleteSession(sessionId: string): Promise<void>;
+  listSessions(agentId?: string): Promise<SessionSummary[]>;
+}
+
+// Also: ContextStore, LogStore
+// Or implement UnifiedStore for all-in-one
+```
+
+## Model Providers
+
+agent-runner uses the `ai` package internally — a client library that calls providers directly with your API keys. No middleman, no data routing.
+
+```typescript
+// Set provider in agent definition
+defineAgent({
+  model: { provider: "openai", name: "gpt-4o" },      // needs OPENAI_API_KEY
+  // or
+  model: { provider: "anthropic", name: "claude-sonnet-4-20250514" }, // needs ANTHROPIC_API_KEY
+  // or
+  model: { provider: "google", name: "gemini-2.0-flash" },    // needs GOOGLE_GENERATIVE_AI_API_KEY
+});
+
+// Or bring your own model provider entirely
+const runner = createRunner({
+  modelProvider: myCustomProvider, // implements ModelProvider interface
+});
+```
+
+## Error Handling
+
+All errors extend `AgentRunnerError` with a `code` field:
+
+```typescript
+import {
+  AgentRunnerError,
+  AgentNotFoundError,
+  ToolExecutionError,
+  InvocationCancelledError,
+  MaxStepsExceededError,
+} from "agent-runner";
+
+try {
+  await runner.invoke("nonexistent", "hi");
+} catch (err) {
+  if (err instanceof AgentNotFoundError) {
+    console.log(err.agentId); // "nonexistent"
+    console.log(err.code);    // "AGENT_NOT_FOUND"
+  }
+}
+```
+
+## Stream Events
+
+The `stream()` method returns an async iterable of typed events:
+
+| Event | Description |
+|---|---|
+| `text-delta` | Incremental text chunk from the model |
+| `tool-call-start` | Tool execution is starting |
+| `tool-call-end` | Tool execution completed (with result) |
+| `step-complete` | One iteration of the tool loop finished |
+| `done` | Final result with full InvokeResult |
+
+## Configuration
+
+```typescript
+const runner = createRunner({
+  // Storage
+  store: new JsonFileStore("./data"),
+
+  // Inline tools
+  tools: [myTool1, myTool2],
+
+  // Session config
+  session: {
+    maxMessages: 50,       // Sliding window size
+    strategy: "sliding",   // "sliding" | "summary" | "none"
+  },
+
+  // Context config
+  context: {
+    maxEntries: 20,        // Max entries per context ID
+    maxTokens: 4000,       // Token budget for injection
+    strategy: "latest",    // "latest" | "summary" | "all"
+  },
+
+  // Default model (when agent doesn't specify)
+  defaults: {
+    model: { provider: "openai", name: "gpt-4o-mini" },
+    temperature: 0.7,
+    maxTokens: 4096,
+  },
+});
+```
+
+## CLI
+
+```bash
+# Scaffold a new project
+npx agent-runner init
+
+# Invoke an agent
+npx agent-runner invoke greeter "Hello!"
+
+# Launch the Studio (coming soon)
+npx agent-runner studio
+```
+
+## Roadmap
+
+- [x] **Phase 1:** Core SDK — createRunner, invoke, agents, tools, stores ✅
+- [x] **Phase 1.5:** Streaming + typed errors ✅
+- [ ] **Phase 2:** MCP integration + context strategies
+- [ ] **Phase 3:** Studio UI (visual agent editor, playground, logs)
+- [ ] **Phase 4:** Eval system (assertions, LLM-as-judge, CI)
+- [ ] **Phase 5:** Production hardening (SQLite, retries, graceful shutdown)
+
+## License
+
+MIT

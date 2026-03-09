@@ -1,4 +1,4 @@
-import type { ModelConfig, ModelProvider, GenerateTextOptions, GenerateTextResult } from "./types.js";
+import type { ModelConfig, ModelProvider, GenerateTextOptions, GenerateTextResult, ModelStreamResult, TokenUsage } from "./types.js";
 
 /**
  * Default model provider using the Vercel AI SDK (`ai` package).
@@ -51,6 +51,63 @@ export class AISDKModelProvider implements ModelProvider {
         totalTokens: (result.usage?.promptTokens ?? 0) + (result.usage?.completionTokens ?? 0),
       },
       finishReason: result.finishReason ?? "stop",
+    };
+  }
+
+  async streamText(options: GenerateTextOptions): Promise<ModelStreamResult> {
+    const { streamText } = await import("ai");
+    const model = await this.resolveModel(options.model);
+
+    const messages = options.messages.map(m => ({
+      role: m.role as "system" | "user" | "assistant",
+      content: m.content,
+    }));
+
+    // Build tools map
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tools: Record<string, any> = {};
+    if (options.tools?.length) {
+      const { tool: aiTool } = await import("ai");
+      const { z } = await import("zod");
+
+      for (const t of options.tools) {
+        tools[t.name] = aiTool({
+          description: t.description,
+          parameters: jsonSchemaToZod(t.parameters, z),
+        });
+      }
+    }
+
+    const result = streamText({
+      model,
+      messages,
+      tools: Object.keys(tools).length > 0 ? tools : undefined,
+      maxSteps: 1,
+      abortSignal: options.signal,
+    });
+
+    const toolCallsPromise = result.toolCalls.then(tcs =>
+      tcs.map(tc => ({ id: tc.toolCallId, name: tc.toolName, args: tc.args }))
+    );
+    const usagePromise = result.usage.then(u => ({
+      promptTokens: u?.promptTokens ?? 0,
+      completionTokens: u?.completionTokens ?? 0,
+      totalTokens: (u?.promptTokens ?? 0) + (u?.completionTokens ?? 0),
+    }));
+    const finishReasonPromise = Promise.resolve(result.finishReason) as Promise<string>;
+
+    return {
+      textStream: result.textStream,
+      toolCalls: toolCallsPromise,
+      usage: usagePromise,
+      finishReason: finishReasonPromise,
+      async toResult(): Promise<GenerateTextResult> {
+        const text = await result.text;
+        const toolCalls = await toolCallsPromise;
+        const usage = await usagePromise;
+        const finishReason = await finishReasonPromise;
+        return { text, toolCalls, usage, finishReason };
+      },
     };
   }
 

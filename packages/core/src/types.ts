@@ -111,6 +111,24 @@ export interface InvokeOptions {
   stream?: boolean;
   /** Cancellation */
   signal?: AbortSignal;
+  /** Maximum tool call loop iterations (default: 10) */
+  maxSteps?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Streaming
+// ═══════════════════════════════════════════════════════════════════════
+
+export type StreamEvent =
+  | { type: "text-delta"; text: string }
+  | { type: "tool-call-start"; toolCall: { id: string; name: string } }
+  | { type: "tool-call-end"; toolCall: ToolCallRecord }
+  | { type: "step-complete"; step: number; toolCalls: ToolCallRecord[] }
+  | { type: "done"; result: InvokeResult };
+
+export interface InvokeStream extends AsyncIterable<StreamEvent> {
+  /** Await the final result (consumes the stream) */
+  result: Promise<InvokeResult>;
 }
 
 export interface InvokeResult {
@@ -344,6 +362,16 @@ export type UnifiedStore = AgentStore & SessionStore & ContextStore & LogStore;
 
 export interface ModelProvider {
   generateText(options: GenerateTextOptions): Promise<GenerateTextResult>;
+  streamText?(options: GenerateTextOptions): Promise<ModelStreamResult>;
+}
+
+export interface ModelStreamResult {
+  textStream: AsyncIterable<string>;
+  toolCalls: Promise<Array<{ id: string; name: string; args: unknown }>>;
+  usage: Promise<TokenUsage>;
+  finishReason: Promise<string>;
+  /** Collect all text + tool calls into a final result */
+  toResult(): Promise<GenerateTextResult>;
 }
 
 export interface GenerateTextOptions {
