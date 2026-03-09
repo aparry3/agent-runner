@@ -20,5 +20,8 @@
       "better-sqlite3",
       "esbuild"
     ]
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

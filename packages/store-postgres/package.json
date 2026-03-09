@@ -50,5 +50,8 @@
     "directory": "packages/store-postgres"
   },
   "homepage": "https://github.com/aparryopenclaw/agent-runner#readme",
-  "author": "Aaron Bidworthy"
+  "author": "Aaron Bidworthy",
+  "engines": {
+    "node": ">=20.0.0"
+  }
 }
