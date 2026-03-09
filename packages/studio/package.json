@@ -1,0 +1,51 @@
+{
+  "name": "@agent-runner/studio",
+  "version": "0.1.0",
+  "description": "Development studio for agent-runner — visual agent editor, playground, tool catalog, and eval dashboard",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./middleware": {
+      "types": "./dist/middleware.d.ts",
+      "import": "./dist/middleware.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "studio",
+    "development",
+    "mcp"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "hono": "^4.7.0"
+  },
+  "peerDependencies": {
+    "agent-runner": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "agent-runner": "workspace:*",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0",
+    "zod": "^3.24.0"
+  }
+}

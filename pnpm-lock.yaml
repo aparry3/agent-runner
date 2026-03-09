@@ -52,6 +52,34 @@ importers:
         specifier: ^3.0.0
         version: 3.2.4(@types/node@22.19.15)
 
+  packages/studio:
+    dependencies:
+      '@hono/node-server':
+        specifier: ^1.14.0
+        version: 1.19.11(hono@4.12.5)
+      hono:
+        specifier: ^4.7.0
+        version: 4.12.5
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.15
+      agent-runner:
+        specifier: workspace:*
+        version: link:../core
+      tsup:
+        specifier: ^8.4.0
+        version: 8.5.1(postcss@8.5.8)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/node@22.19.15)
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
+
 packages:
 
   '@ai-sdk/anthropic@1.2.12':

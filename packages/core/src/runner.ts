@@ -106,6 +106,23 @@ export class Runner {
   }
 
   // ═══════════════════════════════════════════════════════════════════
+  // Store Access (for Studio integration)
+  // ═══════════════════════════════════════════════════════════════════
+
+  /** Access the agent store */
+  get agents(): AgentStore { return this.agentStore; }
+  /** Access the session store */
+  get sessions(): SessionStore { return this.sessionStore; }
+  /** Access the context store (raw) */
+  get contexts(): ContextStore { return this.contextStore; }
+  /** Access the log store */
+  get logs(): LogStore { return this.logStore; }
+  /** Access the model provider */
+  get model(): ModelProvider { return this.modelProvider; }
+  /** Access the runner config */
+  get runnerConfig(): RunnerConfig { return this.config; }
+
+  // ═══════════════════════════════════════════════════════════════════
   // Agent Management
   // ═══════════════════════════════════════════════════════════════════
 
