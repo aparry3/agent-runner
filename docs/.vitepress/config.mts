@@ -41,6 +41,7 @@ export default defineConfig({
             { text: 'Streaming', link: '/guide/streaming' },
             { text: 'Evals & Testing', link: '/guide/evals' },
             { text: 'Error Handling & Retry', link: '/guide/error-handling' },
+            { text: 'OpenTelemetry', link: '/guide/telemetry' },
           ],
         },
       ],

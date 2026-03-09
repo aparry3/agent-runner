@@ -535,6 +535,33 @@ const runner = createRunner({
 
 Automatic migrations, JSONB for agent definitions, configurable table prefix, connection pooling.
 
+## OpenTelemetry
+
+Opt-in observability with OpenTelemetry. Install `@opentelemetry/api` and pass your tracer:
+
+```typescript
+import { trace } from "@opentelemetry/api";
+
+const runner = createRunner({
+  telemetry: {
+    tracer: trace.getTracer("my-app"),
+    recordIO: false,      // Don't log input/output (privacy default)
+    recordToolIO: false,   // Don't log tool I/O
+    baseAttributes: {      // Added to every span
+      "service.name": "my-app",
+      "deployment.environment": "production",
+    },
+  },
+});
+```
+
+**Span hierarchy:**
+- `agent.invoke` — root span per invocation (agent ID, model, tokens, duration)
+  - `agent.model.call` — each LLM API call (usage, finish reason)
+  - `agent.tool.execute` — each tool execution (tool name, duration, errors)
+
+Zero overhead when telemetry is not configured — all span operations become no-ops.
+
 ## CLI
 
 ```bash

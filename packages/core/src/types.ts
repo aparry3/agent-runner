@@ -1,4 +1,5 @@
 import type { ZodSchema } from "zod";
+import type { TelemetryConfig } from "./telemetry.js";
 
 // ═══════════════════════════════════════════════════════════════════════
 // Agent Definition — the core portable data structure
@@ -331,6 +332,9 @@ export interface RunnerConfig {
 
   /** Maximum recursion depth for agent-as-tool chains (default: 3) */
   maxRecursionDepth?: number;
+
+  /** OpenTelemetry configuration (opt-in) */
+  telemetry?: TelemetryConfig;
 }
 
 export interface MCPServerConfig {

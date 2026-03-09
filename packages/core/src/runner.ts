@@ -39,6 +39,8 @@ import { runEval } from "./eval.js";
 import type { EvalRunOptions } from "./eval.js";
 import { withRetry } from "./utils/retry.js";
 import type { RetryConfig } from "./utils/retry.js";
+import { Telemetry } from "./telemetry.js";
+import type { InvokeSpan } from "./telemetry.js";
 
 /** Maximum tool call iterations to prevent infinite loops */
 const DEFAULT_MAX_STEPS = 10;
@@ -60,6 +62,7 @@ export class Runner {
   private mcpManager: MCPClientManager | null = null;
   private mcpInitPromise: Promise<void> | null = null;
   private config: RunnerConfig;
+  private telemetry: Telemetry;
 
   /** Agents registered in code (not persisted to store) */
   private registeredAgents = new Map<string, AgentDefinition>();
@@ -98,6 +101,10 @@ export class Runner {
     if (config.mcp?.servers && Object.keys(config.mcp.servers).length > 0) {
       this.mcpManager = new MCPClientManager(config.mcp.servers);
     }
+
+    // Initialize telemetry (no-op if not configured)
+    this.telemetry = new Telemetry(config.telemetry);
+
   }
 
   /**
@@ -589,225 +596,277 @@ export class Runner {
       maxTokens: agent.model.maxTokens ?? this.config.defaults?.maxTokens,
     };
 
-    // Load session history
-    let sessionHistory: Message[] = [];
-    if (options.sessionId) {
-      sessionHistory = await this.sessionStore.getMessages(options.sessionId);
-      const maxMessages = this.config.session?.maxMessages ?? 50;
-      const strategy = this.config.session?.strategy ?? "sliding";
-
-      if (strategy === "summary" && sessionHistory.length > maxMessages) {
-        sessionHistory = await trimHistoryWithSummary(sessionHistory, {
-          maxMessages,
-          modelProvider: this.modelProvider,
-          modelConfig: modelConfig as import("./types.js").ModelConfig,
-          signal: options.signal,
-        });
-      } else if (strategy !== "none") {
-        sessionHistory = trimHistory(sessionHistory, maxMessages);
-      }
-    }
-
-    // Load context entries
-    let contextEntries: Map<string, ContextEntry[]> | undefined;
-    if (options.contextIds?.length) {
-      contextEntries = new Map();
-      for (const contextId of options.contextIds) {
-        const entries = await this.contextStore.getContext(contextId);
-        if (entries.length > 0) {
-          // Apply context limits
-          const maxEntries = this.config.context?.maxEntries ?? 20;
-          const trimmed = entries.slice(-maxEntries);
-          contextEntries.set(contextId, trimmed);
-        }
-      }
-    }
-
-    // Build messages
-    const messages = buildMessages({
-      agent,
-      input,
-      sessionHistory,
-      contextEntries,
-      extraContext: options.extraContext,
-    });
-
-    // Resolve available tools for this agent
-    const availableTools = this.resolveToolsForAgent(agent);
-
-    // Execute the agent loop (model → tools → repeat)
-    const allToolCalls: ToolCallRecord[] = [];
-    const totalUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
-    let finalOutput = "";
-    let step = 0;
-
-    const maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
-
-    while (step < maxSteps) {
-      step++;
-
-      // Check for cancellation
-      if (options.signal?.aborted) {
-        throw new InvocationCancelledError();
-      }
-
-      // Build output schema if the agent defines one
-      const outputSchema = agent.outputSchema
-        ? { name: `${agent.id}_output`, schema: agent.outputSchema }
-        : undefined;
-
-      // Call the model (with retry)
-      const result = await withRetry(
-        () => this.modelProvider.generateText({
-          model: modelConfig,
-          messages,
-          tools: availableTools.length > 0 ? availableTools : undefined,
-          outputSchema,
-          signal: options.signal,
-        }),
-        this.config.retry,
-        options.signal,
-      );
-
-      // Accumulate usage
-      totalUsage.promptTokens += result.usage.promptTokens;
-      totalUsage.completionTokens += result.usage.completionTokens;
-      totalUsage.totalTokens += result.usage.totalTokens;
-
-      // If no tool calls, we're done
-      if (!result.toolCalls?.length) {
-        finalOutput = result.text;
-        break;
-      }
-
-      // Execute tool calls
-      const toolResults: Array<{ id: string; result: string }> = [];
-
-      for (const tc of result.toolCalls) {
-        const toolStartTime = Date.now();
-        const toolCtx: ToolContext = {
-          agentId,
-          sessionId: options.sessionId,
-          contextIds: options.contextIds,
-          invocationId,
-          _recursionDepth: currentDepth,
-          invoke: (agentId: string, input: string, opts?: InvokeOptions) =>
-            this.invoke(agentId, input, {
-              ...opts,
-              _recursionDepth: (opts?._recursionDepth ?? currentDepth) + 1,
-            }),
-          ...(options.toolContext ?? {}),
-        } as ToolContext;
-
-        let output: unknown;
-        let error: string | undefined;
-
-        try {
-          output = await this.toolRegistry.execute(tc.name, tc.args, toolCtx);
-        } catch (err) {
-          // Propagate critical errors instead of swallowing them
-          if (err instanceof MaxRecursionDepthError || err instanceof InvocationCancelledError) {
-            throw err;
-          }
-          error = err instanceof Error ? err.message : String(err);
-          output = { error };
-        }
-
-        const toolCallRecord: ToolCallRecord = {
-          id: tc.id,
-          name: tc.name,
-          input: tc.args,
-          output,
-          duration: Date.now() - toolStartTime,
-          error,
-        };
-        allToolCalls.push(toolCallRecord);
-
-        toolResults.push({
-          id: tc.id,
-          result: typeof output === "string" ? output : JSON.stringify(output),
-        });
-      }
-
-      // Add assistant message with tool calls to the conversation
-      if (result.text) {
-        messages.push({ role: "assistant", content: result.text });
-      }
-
-      // Add tool call request as assistant message
-      messages.push({
-        role: "assistant",
-        content: result.toolCalls.map(tc =>
-          `[Tool Call: ${tc.name}(${JSON.stringify(tc.args)})]`
-        ).join("\n"),
-      });
-
-      // Add tool results
-      for (const tr of toolResults) {
-        messages.push({ role: "tool" as string, content: tr.result });
-      }
-
-      // If the model also produced text along with tool calls, that's the final output
-      if (result.finishReason === "stop" && result.text) {
-        finalOutput = result.text;
-        break;
-      }
-    }
-
-    const duration = Date.now() - startTime;
     const modelStr = `${modelConfig.provider}/${modelConfig.name}`;
 
-    // Save to session
-    if (options.sessionId) {
-      const now = new Date().toISOString();
-      const newMessages: Message[] = [
-        { role: "user", content: input, timestamp: now },
-        {
-          role: "assistant",
-          content: finalOutput,
-          toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
-          timestamp: now,
-        },
-      ];
-      await this.sessionStore.append(options.sessionId, newMessages);
-    }
-
-    // Write to context if agent has contextWrite enabled
-    if (agent.contextWrite && options.contextIds?.length && finalOutput) {
-      for (const contextId of options.contextIds) {
-        await this.contextStore.addContext(contextId, {
-          contextId,
-          agentId,
-          invocationId,
-          content: finalOutput,
-          createdAt: new Date().toISOString(),
-        });
-      }
-    }
-
-    // Log the invocation
-    const logEntry: InvocationLog = {
-      id: invocationId,
+    // Start telemetry span
+    const span = this.telemetry.startInvoke({
       agentId,
-      sessionId: options.sessionId,
-      input,
-      output: finalOutput,
-      toolCalls: allToolCalls,
-      usage: totalUsage,
-      duration,
-      model: modelStr,
-      timestamp: new Date().toISOString(),
-    };
-    await this.logStore.log(logEntry);
-
-    return {
-      output: finalOutput,
       invocationId,
-      toolCalls: allToolCalls,
-      usage: totalUsage,
-      duration,
       model: modelStr,
-    };
+      sessionId: options.sessionId,
+      contextIds: options.contextIds,
+      input,
+    });
+
+    try {
+      // Load session history
+      let sessionHistory: Message[] = [];
+      if (options.sessionId) {
+        sessionHistory = await this.sessionStore.getMessages(options.sessionId);
+        const maxMessages = this.config.session?.maxMessages ?? 50;
+        const strategy = this.config.session?.strategy ?? "sliding";
+
+        if (strategy === "summary" && sessionHistory.length > maxMessages) {
+          sessionHistory = await trimHistoryWithSummary(sessionHistory, {
+            maxMessages,
+            modelProvider: this.modelProvider,
+            modelConfig: modelConfig as import("./types.js").ModelConfig,
+            signal: options.signal,
+          });
+        } else if (strategy !== "none") {
+          sessionHistory = trimHistory(sessionHistory, maxMessages);
+        }
+      }
+
+      // Load context entries
+      let contextEntries: Map<string, ContextEntry[]> | undefined;
+      if (options.contextIds?.length) {
+        contextEntries = new Map();
+        for (const contextId of options.contextIds) {
+          const entries = await this.contextStore.getContext(contextId);
+          if (entries.length > 0) {
+            // Apply context limits
+            const maxEntries = this.config.context?.maxEntries ?? 20;
+            const trimmed = entries.slice(-maxEntries);
+            contextEntries.set(contextId, trimmed);
+          }
+        }
+      }
+
+      // Build messages
+      const messages = buildMessages({
+        agent,
+        input,
+        sessionHistory,
+        contextEntries,
+        extraContext: options.extraContext,
+      });
+
+      // Resolve available tools for this agent
+      const availableTools = this.resolveToolsForAgent(agent);
+
+      // Execute the agent loop (model → tools → repeat)
+      const allToolCalls: ToolCallRecord[] = [];
+      const totalUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+      let finalOutput = "";
+      let step = 0;
+
+      const maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
+
+      while (step < maxSteps) {
+        step++;
+
+        // Check for cancellation
+        if (options.signal?.aborted) {
+          throw new InvocationCancelledError();
+        }
+
+        // Build output schema if the agent defines one
+        const outputSchema = agent.outputSchema
+          ? { name: `${agent.id}_output`, schema: agent.outputSchema }
+          : undefined;
+
+        // Start model call span
+        const modelSpan = span.modelCall({ model: modelStr, step });
+
+        let result;
+        try {
+          // Call the model (with retry)
+          result = await withRetry(
+            () => this.modelProvider.generateText({
+              model: modelConfig,
+              messages,
+              tools: availableTools.length > 0 ? availableTools : undefined,
+              outputSchema,
+              signal: options.signal,
+            }),
+            this.config.retry,
+            options.signal,
+          );
+
+          modelSpan.setResult({
+            usage: result.usage,
+            finishReason: result.finishReason,
+            toolCallCount: result.toolCalls?.length ?? 0,
+          });
+          modelSpan.end();
+        } catch (err) {
+          modelSpan.error(err instanceof Error ? err : new Error(String(err)));
+          throw err;
+        }
+
+        // Accumulate usage
+        totalUsage.promptTokens += result.usage.promptTokens;
+        totalUsage.completionTokens += result.usage.completionTokens;
+        totalUsage.totalTokens += result.usage.totalTokens;
+
+        // If no tool calls, we're done
+        if (!result.toolCalls?.length) {
+          finalOutput = result.text;
+          break;
+        }
+
+        // Execute tool calls
+        const toolResults: Array<{ id: string; result: string }> = [];
+
+        for (const tc of result.toolCalls) {
+          const toolSpan = span.toolCall({ toolName: tc.name, toolCallId: tc.id });
+          const toolStartTime = Date.now();
+          const toolCtx: ToolContext = {
+            agentId,
+            sessionId: options.sessionId,
+            contextIds: options.contextIds,
+            invocationId,
+            _recursionDepth: currentDepth,
+            invoke: (agentId: string, input: string, opts?: InvokeOptions) =>
+              this.invoke(agentId, input, {
+                ...opts,
+                _recursionDepth: (opts?._recursionDepth ?? currentDepth) + 1,
+              }),
+            ...(options.toolContext ?? {}),
+          } as ToolContext;
+
+          let output: unknown;
+          let error: string | undefined;
+
+          try {
+            output = await this.toolRegistry.execute(tc.name, tc.args, toolCtx);
+          } catch (err) {
+            // Propagate critical errors instead of swallowing them
+            if (err instanceof MaxRecursionDepthError || err instanceof InvocationCancelledError) {
+              toolSpan.error(err);
+              throw err;
+            }
+            error = err instanceof Error ? err.message : String(err);
+            output = { error };
+          }
+
+          const toolCallRecord: ToolCallRecord = {
+            id: tc.id,
+            name: tc.name,
+            input: tc.args,
+            output,
+            duration: Date.now() - toolStartTime,
+            error,
+          };
+          allToolCalls.push(toolCallRecord);
+
+          toolSpan.setResult(toolCallRecord);
+          if (error) {
+            toolSpan.error(error);
+          } else {
+            toolSpan.end();
+          }
+
+          toolResults.push({
+            id: tc.id,
+            result: typeof output === "string" ? output : JSON.stringify(output),
+          });
+        }
+
+        // Add assistant message with tool calls to the conversation
+        if (result.text) {
+          messages.push({ role: "assistant", content: result.text });
+        }
+
+        // Add tool call request as assistant message
+        messages.push({
+          role: "assistant",
+          content: result.toolCalls.map(tc =>
+            `[Tool Call: ${tc.name}(${JSON.stringify(tc.args)})]`
+          ).join("\n"),
+        });
+
+        // Add tool results
+        for (const tr of toolResults) {
+          messages.push({ role: "tool" as string, content: tr.result });
+        }
+
+        // If the model also produced text along with tool calls, that's the final output
+        if (result.finishReason === "stop" && result.text) {
+          finalOutput = result.text;
+          break;
+        }
+      }
+
+      const duration = Date.now() - startTime;
+
+      // Set telemetry result
+      span.setResult({
+        output: finalOutput,
+        usage: totalUsage,
+        duration,
+        toolCallCount: allToolCalls.length,
+        stepCount: step,
+      });
+
+      // Save to session
+      if (options.sessionId) {
+        const now = new Date().toISOString();
+        const newMessages: Message[] = [
+          { role: "user", content: input, timestamp: now },
+          {
+            role: "assistant",
+            content: finalOutput,
+            toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
+            timestamp: now,
+          },
+        ];
+        await this.sessionStore.append(options.sessionId, newMessages);
+      }
+
+      // Write to context if agent has contextWrite enabled
+      if (agent.contextWrite && options.contextIds?.length && finalOutput) {
+        for (const contextId of options.contextIds) {
+          await this.contextStore.addContext(contextId, {
+            contextId,
+            agentId,
+            invocationId,
+            content: finalOutput,
+            createdAt: new Date().toISOString(),
+          });
+        }
+      }
+
+      // Log the invocation
+      const logEntry: InvocationLog = {
+        id: invocationId,
+        agentId,
+        sessionId: options.sessionId,
+        input,
+        output: finalOutput,
+        toolCalls: allToolCalls,
+        usage: totalUsage,
+        duration,
+        model: modelStr,
+        timestamp: new Date().toISOString(),
+      };
+      await this.logStore.log(logEntry);
+
+      span.end();
+
+      return {
+        output: finalOutput,
+        invocationId,
+        toolCalls: allToolCalls,
+        usage: totalUsage,
+        duration,
+        model: modelStr,
+      };
+    } catch (err) {
+      span.error(err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    }
   }
 
   /**

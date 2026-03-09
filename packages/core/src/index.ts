@@ -20,6 +20,17 @@ export type { MCPTool } from "./mcp/client-manager.js";
 export { createMCPServer } from "./mcp/server.js";
 export type { MCPServerOptions } from "./mcp/server.js";
 
+// Telemetry
+export { Telemetry } from "./telemetry.js";
+export type {
+  TelemetryConfig,
+  OTelTracer,
+  OTelSpan,
+  InvokeSpan,
+  ModelCallSpan,
+  ToolCallSpan,
+} from "./telemetry.js";
+
 // Utilities
 export { withRetry } from "./utils/retry.js";
 export type { RetryConfig } from "./utils/retry.js";
