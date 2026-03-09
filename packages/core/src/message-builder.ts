@@ -50,7 +50,8 @@ export function buildMessages(options: {
   // 2. Session history
   if (sessionHistory?.length) {
     for (const msg of sessionHistory) {
-      if (msg.role === "system") continue; // Skip system messages from history
+      // Skip system messages from history, except conversation summaries
+      if (msg.role === "system" && !msg.content.startsWith("[Conversation Summary]")) continue;
       messages.push({ role: msg.role, content: msg.content });
     }
   }

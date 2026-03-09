@@ -23,6 +23,7 @@ export type { MCPServerOptions } from "./mcp/server.js";
 // Utilities
 export { withRetry } from "./utils/retry.js";
 export type { RetryConfig } from "./utils/retry.js";
+export { summarizeMessages, trimHistoryWithSummary } from "./utils/summarize.js";
 
 // Eval
 export { runEval } from "./eval.js";

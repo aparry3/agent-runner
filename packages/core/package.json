@@ -25,6 +25,7 @@
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
+    "bench": "vitest bench",
     "lint": "biome check src/",
     "typecheck": "tsc --noEmit"
   },

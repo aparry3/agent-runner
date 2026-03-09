@@ -23,6 +23,7 @@ import { ToolRegistry } from "./tool.js";
 import { MemoryStore } from "./stores/memory.js";
 import { AISDKModelProvider } from "./model-provider.js";
 import { buildMessages, trimHistory } from "./message-builder.js";
+import { trimHistoryWithSummary } from "./utils/summarize.js";
 import { generateInvocationId } from "./utils/id.js";
 import { MCPClientManager } from "./mcp/client-manager.js";
 import type { MCPTool } from "./mcp/client-manager.js";
@@ -216,11 +217,26 @@ export class Runner {
 
   /**
    * Gracefully shut down the runner — closes MCP connections, flushes stores.
+   * Safe to call multiple times.
    */
   async shutdown(): Promise<void> {
+    const cleanups: Promise<void>[] = [];
+
+    // Close MCP connections
     if (this.mcpManager) {
-      await this.mcpManager.shutdown();
+      cleanups.push(this.mcpManager.shutdown().catch(() => {}));
     }
+
+    // Close stores that have a close() method (e.g., SQLite)
+    for (const store of [this.agentStore, this.sessionStore, this.contextStore, this.logStore]) {
+      if (store && typeof (store as any).close === "function") {
+        cleanups.push(
+          Promise.resolve((store as any).close()).catch(() => {})
+        );
+      }
+    }
+
+    await Promise.all(cleanups);
   }
 
   get context() {
@@ -293,7 +309,18 @@ export class Runner {
       if (options.sessionId) {
         sessionHistory = await self.sessionStore.getMessages(options.sessionId);
         const maxMessages = self.config.session?.maxMessages ?? 50;
-        sessionHistory = trimHistory(sessionHistory, maxMessages);
+        const strategy = self.config.session?.strategy ?? "sliding";
+
+        if (strategy === "summary" && sessionHistory.length > maxMessages) {
+          sessionHistory = await trimHistoryWithSummary(sessionHistory, {
+            maxMessages,
+            modelProvider: self.modelProvider,
+            modelConfig: modelConfig as import("./types.js").ModelConfig,
+            signal: options.signal,
+          });
+        } else if (strategy !== "none") {
+          sessionHistory = trimHistory(sessionHistory, maxMessages);
+        }
       }
 
       // Load context
@@ -567,7 +594,18 @@ export class Runner {
     if (options.sessionId) {
       sessionHistory = await this.sessionStore.getMessages(options.sessionId);
       const maxMessages = this.config.session?.maxMessages ?? 50;
-      sessionHistory = trimHistory(sessionHistory, maxMessages);
+      const strategy = this.config.session?.strategy ?? "sliding";
+
+      if (strategy === "summary" && sessionHistory.length > maxMessages) {
+        sessionHistory = await trimHistoryWithSummary(sessionHistory, {
+          maxMessages,
+          modelProvider: this.modelProvider,
+          modelConfig: modelConfig as import("./types.js").ModelConfig,
+          signal: options.signal,
+        });
+      } else if (strategy !== "none") {
+        sessionHistory = trimHistory(sessionHistory, maxMessages);
+      }
     }
 
     // Load context entries
