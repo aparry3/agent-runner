@@ -22,7 +22,7 @@ export function PageHeader({ title, subtitle, actions }: {
 export function Card({ children, style, onClick }: {
   children: ReactNode;
   style?: CSSProperties;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }) {
   return (
     <div
@@ -50,7 +50,7 @@ export function Button({ children, variant = "default", size = "md", onClick, di
   children: ReactNode;
   variant?: "default" | "primary" | "danger" | "ghost";
   size?: "sm" | "md";
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   style?: CSSProperties;
 }) {
