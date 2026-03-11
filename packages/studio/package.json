@@ -1,7 +1,7 @@
 {
   "name": "@agent-runner/studio",
-  "version": "0.1.0",
-  "description": "Development studio for agent-runner \u2014 visual agent editor, playground, tool catalog, and eval dashboard",
+  "version": "0.1.1",
+  "description": "Development studio for agent-runner — visual agent editor, playground, tool catalog, and eval dashboard",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -55,7 +55,7 @@
     "react-router-dom": "^7.13.1"
   },
   "peerDependencies": {
-    "@agent-runner/core": ">=0.1.0"
+    "@agent-runner/core": ">=0.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
