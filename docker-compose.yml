@@ -1,0 +1,46 @@
+services:
+  app:
+    build:
+      context: .
+      target: app
+    ports:
+      - "3000:3000"
+    environment:
+      - STORE=postgres
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/agent_runner
+      - WORKER_URL=http://worker:4001
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      target: worker
+    ports:
+      - "4001:4001"
+    environment:
+      - STORE=postgres
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/agent_runner
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=agent_runner
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

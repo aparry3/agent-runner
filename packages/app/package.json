@@ -1,0 +1,33 @@
+{
+  "name": "@agent-runner/app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent Runner Service — UI and API for defining, running, and managing AI agents",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@agent-runner/core": "workspace:*",
+    "@agent-runner/manifest": "workspace:*",
+    "@agent-runner/worker": "workspace:*",
+    "next": "^15.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "yaml": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0",
+    "tailwindcss": "^4.0.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "postcss": "^8.5.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "/api/agents/[id]/route": "/api/agents/[id]",
+  "/_not-found/page": "/_not-found",
+  "/api/logs/route": "/api/logs",
+  "/api/health/route": "/api/health",
+  "/api/run/route": "/api/run",
+  "/api/agents/route": "/api/agents",
+  "/api/run/stream/route": "/api/run/stream",
+  "/api/sessions/[id]/route": "/api/sessions/[id]",
+  "/api/tools/route": "/api/tools",
+  "/api/sessions/route": "/api/sessions",
+  "/agents/[id]/page": "/agents/[id]",
+  "/agents/[id]/playground/page": "/agents/[id]/playground",
+  "/sessions/page": "/sessions",
+  "/page": "/",
+  "/tools/page": "/tools",
+  "/logs/page": "/logs",
+  "/agents/page": "/agents"
+}
