@@ -1,0 +1,56 @@
+{
+  "name": "@agent-runner/worker",
+  "version": "0.1.0",
+  "description": "Hono server for agent execution — runs YAML-defined agents via the manifest engine",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "agent-worker": "./dist/server.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aparry3/agent-runner.git",
+    "directory": "packages/worker"
+  },
+  "dependencies": {
+    "hono": "^4.7.0",
+    "@hono/node-server": "^1.13.0",
+    "yaml": "^2.7.0"
+  },
+  "peerDependencies": {
+    "@agent-runner/core": "workspace:*",
+    "@agent-runner/manifest": "workspace:*"
+  },
+  "devDependencies": {
+    "@agent-runner/core": "workspace:*",
+    "@agent-runner/manifest": "workspace:*",
+    "@biomejs/biome": "^1.9.0",
+    "@types/node": "^22.0.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
