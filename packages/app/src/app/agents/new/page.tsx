@@ -6,6 +6,7 @@ import { parse as parseYAML, stringify as stringifyYAML } from "yaml";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { PanelToggle } from "@/components/panel-toggle";
 import { ValidationBanner } from "@/components/validation-banner";
+import { YamlEditor } from "@/components/yaml-editor";
 
 interface ValidationError {
   level: string;
@@ -379,21 +380,20 @@ export default function NewAgentPage() {
           <div className={currentMode === "both" ? "grid gap-4 xl:grid-cols-2" : "grid gap-4"}>
             {(currentMode === "yaml" || currentMode === "both") && (
               <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-                <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">YAML</div>
-                <textarea
+                <YamlEditor
                   value={manifest}
-                  onChange={(event) => {
-                    setManifest(event.target.value);
-                    applyParsedManifest(event.target.value);
+                  onChange={(nextValue) => {
+                    setManifest(nextValue);
+                    applyParsedManifest(nextValue);
                     setStatus(null);
                   }}
-                  spellCheck={false}
-                  className={`h-[32rem] w-full rounded-2xl border bg-white px-4 py-3 font-mono text-sm outline-none transition ${
+                  placeholder="# Write your agent manifest here..."
+                  className={`${
                     hasErrors
-                      ? "border-red-300 focus:border-red-400"
+                      ? "border-red-300"
                       : warnings.length > 0
-                        ? "border-amber-300 focus:border-amber-400"
-                        : "border-stone-200 focus:border-zinc-400"
+                        ? "border-amber-300"
+                        : "border-stone-200"
                   }`}
                 />
               </div>

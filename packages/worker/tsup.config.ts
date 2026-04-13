@@ -1,4 +1,5 @@
 import { defineConfig } from "tsup";
+import { cpSync } from "node:fs";
 
 export default defineConfig({
   entry: ["src/index.ts", "src/server.ts"],
@@ -8,4 +9,7 @@ export default defineConfig({
   sourcemap: true,
   target: "node22",
   outDir: "dist",
+  onSuccess: async () => {
+    cpSync("src/defaults", "dist/defaults", { recursive: true });
+  },
 });

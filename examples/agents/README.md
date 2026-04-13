@@ -2,6 +2,8 @@
 
 YAML manifest examples demonstrating each agent kind and feature. See [docs/schema.md](../../docs/schema.md) for the full schema reference.
 
+The **Agent Builder** (`agent-builder`) is a built-in default agent that ships with the worker and is automatically seeded on startup. Its source lives in `packages/worker/src/defaults/agents/`.
+
 ## Examples
 
 | File | Kind | Demonstrates |
