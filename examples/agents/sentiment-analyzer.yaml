@@ -1,0 +1,32 @@
+# LLM agent with structured input and output
+id: sentiment-analyzer
+name: Sentiment Analyzer
+description: Analyzes the sentiment of text
+kind: llm
+
+inputSchema:
+  text: string
+
+model:
+  provider: openai
+  name: gpt-4o
+  temperature: 0
+
+instruction: |
+  Analyze the sentiment of the following text and respond with a JSON object.
+
+  Text: {{text}}
+
+outputSchema:
+  sentiment:
+    type: string
+    enum: [positive, negative, neutral]
+  confidence: number
+
+examples:
+  - input: "I absolutely love this product!"
+    output: '{"sentiment": "positive", "confidence": 0.95}'
+  - input: "This is the worst experience ever."
+    output: '{"sentiment": "negative", "confidence": 0.92}'
+  - input: "The package arrived on Tuesday."
+    output: '{"sentiment": "neutral", "confidence": 0.88}'

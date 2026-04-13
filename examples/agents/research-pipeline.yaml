@@ -1,0 +1,49 @@
+# Sequential agent — multi-step pipeline with conditional translation
+id: research-pipeline
+name: Research Pipeline
+description: Researches a topic, summarizes findings, and optionally translates
+kind: sequential
+
+inputSchema:
+  topic: string
+  language:
+    type: string
+    default: en
+
+steps:
+  # Step 1: Research the topic
+  - agent: chatbot
+    input:
+      userQuery: "Research the following topic thoroughly: {{topic}}"
+
+  # Step 2: Summarize (inline LLM agent)
+  - agent:
+      id: summarizer
+      kind: llm
+      model:
+        provider: openai
+        name: gpt-4o
+      instruction: |
+        Summarize the following research into 3-5 bullet points:
+
+        {{chatbot}}
+      stateKey: summary
+
+  # Step 3: Translate if needed (conditional)
+  - agent:
+      id: translator
+      kind: llm
+      model:
+        provider: openai
+        name: gpt-4o
+      instruction: |
+        Translate the following text to {{language}}:
+
+        {{summary}}
+    when: "{{language}} != en"
+    stateKey: translation
+
+output:
+  research: "{{chatbot}}"
+  summary: "{{summary}}"
+  translation: "{{translation}}"

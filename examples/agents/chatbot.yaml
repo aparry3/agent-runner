@@ -1,0 +1,15 @@
+# Simple LLM agent — no inputSchema, takes a plain string as {{userQuery}}
+id: chatbot
+name: Chatbot
+description: A simple conversational assistant
+kind: llm
+
+model:
+  provider: openai
+  name: gpt-4o
+  temperature: 0.7
+
+instruction: |
+  You are a friendly, helpful assistant. Answer the user's question clearly and concisely.
+
+  {{userQuery}}

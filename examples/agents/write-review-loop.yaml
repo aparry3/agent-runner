@@ -1,0 +1,60 @@
+# Sequential agent with loop — writes and reviews until approved
+id: write-review-loop
+name: Write and Review
+description: Iteratively writes and reviews content until quality threshold is met
+kind: sequential
+
+inputSchema:
+  topic: string
+  tone:
+    type: string
+    default: professional
+
+until: "{{reviewer.approved}} == true"
+maxIterations: 3
+
+steps:
+  - agent:
+      id: writer
+      kind: llm
+      model:
+        provider: openai
+        name: gpt-4o
+        temperature: 0.8
+      instruction: |
+        Write a short article about {{topic}} in a {{tone}} tone.
+
+        {{#if feedback}}
+        The reviewer provided feedback on your previous draft. Incorporate it:
+        {{feedback}}
+        {{/if}}
+      outputSchema:
+        draft: string
+    input:
+      topic: "{{topic}}"
+      tone: "{{tone}}"
+      feedback: "{{reviewer.feedback}}"
+
+  - agent:
+      id: reviewer
+      kind: llm
+      model:
+        provider: openai
+        name: gpt-4o
+        temperature: 0
+      instruction: |
+        Review this article draft. Evaluate clarity, accuracy, and tone.
+        Respond with a JSON object.
+
+        Draft:
+        {{draft}}
+      outputSchema:
+        approved: boolean
+        feedback: string
+        score: number
+    input:
+      draft: "{{writer.draft}}"
+
+output:
+  finalDraft: "{{writer.draft}}"
+  review: "{{reviewer}}"

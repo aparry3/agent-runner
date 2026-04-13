@@ -1,0 +1,19 @@
+# Tool agent — deterministic function call, no LLM
+id: send-email
+name: Send Email
+description: Sends an email via MCP tool
+kind: tool
+
+inputSchema:
+  recipientEmail: string
+  emailSubject: string
+  emailBody: string
+
+tool:
+  kind: mcp
+  server: https://email-api.example.com/mcp
+  name: send_email
+  params:
+    to: "{{recipientEmail}}"
+    subject: "{{emailSubject}}"
+    body: "{{emailBody}}"

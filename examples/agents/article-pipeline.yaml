@@ -1,0 +1,122 @@
+# Full composition — parallel research, looped writing, and notification
+# Demonstrates nesting: sequential > parallel + sequential(loop) + tool
+id: article-pipeline
+name: Article Pipeline
+description: End-to-end article creation with research, writing, review, and notification
+kind: sequential
+
+inputSchema:
+  topic: string
+  tone:
+    type: string
+    default: professional
+
+steps:
+  # Step 1: Research in parallel
+  - agent:
+      kind: parallel
+      stateKey: research
+      branches:
+        - agent:
+            id: web-researcher
+            kind: llm
+            model:
+              provider: openai
+              name: gpt-4o
+            instruction: |
+              Research the following topic from a general web perspective.
+              Provide key facts, recent developments, and relevant context.
+
+              Topic: {{query}}
+          input:
+            query: "{{topic}}"
+
+        - agent:
+            id: academic-researcher
+            kind: llm
+            model:
+              provider: openai
+              name: gpt-4o
+            instruction: |
+              Research the following topic from an academic/scientific perspective.
+              Cite relevant studies, theories, and expert opinions.
+
+              Topic: {{query}}
+          input:
+            query: "{{topic}}"
+
+  # Step 2: Write + review loop
+  - agent:
+      kind: sequential
+      stateKey: writing
+      until: "{{editor.approved}} == true"
+      maxIterations: 3
+      steps:
+        - agent:
+            id: writer
+            kind: llm
+            model:
+              provider: openai
+              name: gpt-4o
+              temperature: 0.7
+            instruction: |
+              Write a comprehensive article about {{topic}} in a {{tone}} tone.
+
+              Use the following research as source material:
+
+              Web Research:
+              {{webResearch}}
+
+              Academic Research:
+              {{academicResearch}}
+
+              {{#if feedback}}
+              Editor feedback to incorporate:
+              {{feedback}}
+              {{/if}}
+            outputSchema:
+              draft: string
+          input:
+            topic: "{{topic}}"
+            tone: "{{tone}}"
+            webResearch: "{{research.webResearcher}}"
+            academicResearch: "{{research.academicResearcher}}"
+            feedback: "{{editor.feedback}}"
+
+        - agent:
+            id: editor
+            kind: llm
+            model:
+              provider: openai
+              name: gpt-4o
+              temperature: 0
+            instruction: |
+              Review this article for clarity, accuracy, and quality.
+              Respond with a JSON object.
+
+              Article:
+              {{draft}}
+            outputSchema:
+              approved: boolean
+              feedback: string
+              score: number
+          input:
+            draft: "{{writer.draft}}"
+
+  # Step 3: Send notification
+  - agent:
+      kind: tool
+      stateKey: notification
+      tool:
+        kind: local
+        name: send_slack
+        params:
+          channel: "#content"
+          message: "New article ready: {{topic}}"
+
+output:
+  article: "{{writing.writer.draft}}"
+  sources:
+    web: "{{research.webResearcher}}"
+    academic: "{{research.academicResearcher}}"
+  review: "{{writing.editor}}"

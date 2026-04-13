@@ -1,0 +1,34 @@
+# LLM agent with MCP tools, local tools, and tool wrapping
+id: research-assistant
+name: Research Assistant
+description: An assistant with access to search and local tools
+kind: llm
+
+inputSchema:
+  query: string
+  userId: string
+
+model:
+  provider: openai
+  name: gpt-4o
+
+instruction: |
+  You are a research assistant. Use the available tools to answer the user's question.
+
+  Question: {{query}}
+
+tools:
+  # MCP server with plain and wrapped tools
+  - kind: mcp
+    server: https://search-api.example.com/mcp
+    tools:
+      - fetch_url
+      - tool: search
+        name: search_for_user
+        description: "Search the web for information"
+        params:
+          api_key: "{{userId}}"
+
+  # Local tools registered in the service
+  - kind: local
+    tools: [calculator, date_formatter]

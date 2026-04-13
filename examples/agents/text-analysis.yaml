@@ -1,0 +1,55 @@
+# Parallel agent — runs multiple analyses simultaneously
+id: text-analysis
+name: Text Analysis
+description: Runs sentiment, entity extraction, and intent classification in parallel
+kind: parallel
+
+inputSchema:
+  text: string
+
+branches:
+  - agent: sentiment-analyzer
+    input:
+      text: "{{text}}"
+
+  - agent:
+      id: entity-extractor
+      kind: llm
+      model:
+        provider: openai
+        name: gpt-4o
+        temperature: 0
+      instruction: |
+        Extract all named entities (people, places, organizations, dates) from this text.
+        Respond as a JSON array of objects with "name" and "type" fields.
+
+        Text: {{text}}
+      outputSchema:
+        entities: string
+      stateKey: entities
+    input:
+      text: "{{text}}"
+
+  - agent:
+      id: intent-classifier
+      kind: llm
+      model:
+        provider: openai
+        name: gpt-4o
+        temperature: 0
+      instruction: |
+        Classify the primary intent of this text.
+        Respond with a JSON object.
+
+        Text: {{text}}
+      outputSchema:
+        intent: string
+        confidence: number
+      stateKey: intent
+    input:
+      text: "{{text}}"
+
+output:
+  sentiment: "{{sentimentAnalyzer}}"
+  entities: "{{entities}}"
+  intent: "{{intent}}"
