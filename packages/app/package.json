@@ -12,6 +12,7 @@
   "dependencies": {
     "@agent-runner/core": "workspace:*",
     "@agent-runner/manifest": "workspace:*",
+    "@agent-runner/store-postgres": "workspace:*",
     "@agent-runner/worker": "workspace:*",
     "next": "^15.5.0",
     "react": "^19.2.0",

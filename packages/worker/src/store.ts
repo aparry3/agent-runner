@@ -1,11 +1,10 @@
 import type { UnifiedStore } from "@agent-runner/core";
+import { MemoryStore } from "@agent-runner/core";
 
 let _store: UnifiedStore | null = null;
 
 /**
- * Get the store instance. Lazily initialized from environment config.
- * Supports: postgres, memory (default).
- * SQLite is only supported for local development — use `pnpm dev` instead of Docker.
+ * Get the store instance. Lazily initialized from STORE env var.
  */
 export async function getStore(): Promise<UnifiedStore> {
   if (_store) return _store;
@@ -22,18 +21,12 @@ export async function getStore(): Promise<UnifiedStore> {
       _store = new PostgresStore(connectionString);
       break;
     }
-    case "sqlite": {
-      throw new Error(
-        "STORE=sqlite is only supported for local development. Use STORE=postgres in Docker, or run locally with `pnpm dev`."
-      );
-    }
     case "memory":
     default: {
-      const { MemoryStore } = await import("@agent-runner/core");
       _store = new MemoryStore();
       break;
     }
   }
 
-  return _store!;
+  return _store;
 }

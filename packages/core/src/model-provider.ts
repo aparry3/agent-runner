@@ -1,11 +1,15 @@
-import type { ModelConfig, ModelProvider, GenerateTextOptions, GenerateTextResult, ModelStreamResult, TokenUsage } from "./types.js";
+import type { ModelConfig, ModelProvider, GenerateTextOptions, GenerateTextResult, ModelStreamResult, TokenUsage, ProviderStore, ProviderConfig } from "./types.js";
 
 /**
  * Default model provider using the Vercel AI SDK (`ai` package).
- * This is just a client library — calls go directly to OpenAI/Anthropic/Google
- * with the user's own API keys. No Vercel services involved.
+ * Checks the ProviderStore for API keys first, then falls back to env vars.
  */
 export class AISDKModelProvider implements ModelProvider {
+  private providerStore?: ProviderStore;
+
+  constructor(options?: { providerStore?: ProviderStore }) {
+    this.providerStore = options?.providerStore;
+  }
   async generateText(options: GenerateTextOptions): Promise<GenerateTextResult> {
     const { generateText } = await import("ai");
     const model = await this.resolveModel(options.model);
@@ -115,26 +119,106 @@ export class AISDKModelProvider implements ModelProvider {
   private async resolveModel(config: ModelConfig): Promise<any> {
     const { provider, name } = config;
 
+    // Look up provider config from store (API key, base URL)
+    const providerConfig = await this.getProviderConfig(provider);
+    const apiKey = providerConfig?.apiKey;
+    const baseURL = providerConfig?.baseUrl;
+
     switch (provider) {
       case "openai": {
-        const { openai } = await import("@ai-sdk/openai");
-        return openai(name);
+        const { createOpenAI } = await import("@ai-sdk/openai");
+        const client = createOpenAI({ apiKey, baseURL });
+        return client(name);
       }
       case "anthropic": {
-        const { anthropic } = await import("@ai-sdk/anthropic");
-        return anthropic(name);
+        const { createAnthropic } = await import("@ai-sdk/anthropic");
+        const client = createAnthropic({ apiKey, baseURL });
+        return client(name);
       }
       case "google": {
-        const { google } = await import("@ai-sdk/google");
-        return google(name);
+        const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
+        const client = createGoogleGenerativeAI({ apiKey, baseURL });
+        return client(name);
+      }
+      case "mistral": {
+        const { createMistral } = await import("@ai-sdk/mistral");
+        const client = createMistral({ apiKey, baseURL });
+        return client(name);
+      }
+      case "xai": {
+        const { createXai } = await import("@ai-sdk/xai");
+        const client = createXai({ apiKey, baseURL });
+        return client(name);
+      }
+      case "groq": {
+        const { createGroq } = await import("@ai-sdk/groq");
+        const client = createGroq({ apiKey, baseURL });
+        return client(name);
+      }
+      case "deepseek": {
+        const { createDeepSeek } = await import("@ai-sdk/deepseek");
+        const client = createDeepSeek({ apiKey, baseURL });
+        return client(name);
+      }
+      case "perplexity": {
+        const { createPerplexity } = await import("@ai-sdk/perplexity");
+        const client = createPerplexity({ apiKey, baseURL });
+        return client(name);
+      }
+      case "cohere": {
+        const { createCohere } = await import("@ai-sdk/cohere");
+        const client = createCohere({ apiKey, baseURL });
+        return client(name);
+      }
+      case "azure": {
+        const { createAzure } = await import("@ai-sdk/azure");
+        const client = createAzure({ apiKey, baseURL });
+        return client(name);
       }
       default:
         throw new Error(
           `Unknown model provider "${provider}". ` +
-          `Supported: openai, anthropic, google. ` +
+          `Supported: openai, anthropic, google, mistral, xai, groq, deepseek, perplexity, cohere, azure. ` +
           `For other providers, pass a custom modelProvider to createRunner().`
         );
     }
+  }
+
+  /**
+   * Get provider config from the store, falling back to env vars.
+   */
+  private async getProviderConfig(provider: string): Promise<ProviderConfig | undefined> {
+    // Check store first
+    if (this.providerStore) {
+      const stored = await this.providerStore.getProvider(provider);
+      if (stored?.apiKey) return stored;
+    }
+
+    // Fall back to env vars
+    const envKey = this.getEnvVarForProvider(provider);
+    const apiKey = envKey ? process.env[envKey] : undefined;
+    if (apiKey) {
+      return { id: provider, apiKey };
+    }
+
+    // No config found — the SDK will throw its own error about missing API key
+    return undefined;
+  }
+
+  private getEnvVarForProvider(provider: string): string | undefined {
+    const ENV_MAP: Record<string, string> = {
+      openai: "OPENAI_API_KEY",
+      anthropic: "ANTHROPIC_API_KEY",
+      google: "GOOGLE_GENERATIVE_AI_API_KEY",
+      mistral: "MISTRAL_API_KEY",
+      xai: "XAI_API_KEY",
+      groq: "GROQ_API_KEY",
+      deepseek: "DEEPSEEK_API_KEY",
+      perplexity: "PERPLEXITY_API_KEY",
+      cohere: "COHERE_API_KEY",
+      azure: "AZURE_OPENAI_API_KEY",
+    };
+    return ENV_MAP[provider];
   }
 }
 

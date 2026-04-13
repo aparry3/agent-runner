@@ -22,14 +22,15 @@ const MIGRATIONS = [
   // v1: Initial schema
   `
   CREATE TABLE IF NOT EXISTS agents (
-    id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
-    version TEXT,
     definition TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    activated_at TEXT,
+    PRIMARY KEY (agent_id, created_at)
   );
+  CREATE INDEX IF NOT EXISTS idx_agents_active ON agents(agent_id, activated_at);
 
   CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
@@ -153,7 +154,12 @@ export class SqliteStore implements UnifiedStore {
 
   async getAgent(id: string): Promise<AgentDefinition | null> {
     const row = this.db
-      .prepare("SELECT definition FROM agents WHERE id = ?")
+      .prepare(
+        `SELECT definition FROM agents
+         WHERE agent_id = ?
+         ORDER BY activated_at DESC NULLS LAST
+         LIMIT 1`
+      )
       .get(id) as { definition: string } | undefined;
 
     if (!row) return null;
@@ -162,11 +168,19 @@ export class SqliteStore implements UnifiedStore {
 
   async listAgents(): Promise<Array<{ id: string; name: string; description?: string }>> {
     const rows = this.db
-      .prepare("SELECT id, name, description FROM agents ORDER BY name")
-      .all() as Array<{ id: string; name: string; description: string | null }>;
+      .prepare(
+        `SELECT agent_id, name, description FROM agents
+         WHERE (agent_id, activated_at) IN (
+           SELECT agent_id, MAX(activated_at) FROM agents
+           WHERE activated_at IS NOT NULL
+           GROUP BY agent_id
+         )
+         ORDER BY name`
+      )
+      .all() as Array<{ agent_id: string; name: string; description: string | null }>;
 
     return rows.map((r) => ({
-      id: r.id,
+      id: r.agent_id,
       name: r.name,
       description: r.description ?? undefined,
     }));
@@ -174,24 +188,17 @@ export class SqliteStore implements UnifiedStore {
 
   async putAgent(agent: AgentDefinition): Promise<void> {
     const now = new Date().toISOString();
-    const agentWithTimestamp = { ...agent, updatedAt: now };
+    const agentWithTimestamp = { ...agent, createdAt: now, updatedAt: now };
 
     this.db
       .prepare(
-        `INSERT INTO agents (id, name, description, version, definition, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET
-           name = excluded.name,
-           description = excluded.description,
-           version = excluded.version,
-           definition = excluded.definition,
-           updated_at = excluded.updated_at`
+        `INSERT INTO agents (agent_id, name, description, definition, created_at, activated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
       )
       .run(
         agent.id,
         agent.name,
         agent.description ?? null,
-        agent.version ?? null,
         JSON.stringify(agentWithTimestamp),
         now,
         now
@@ -199,7 +206,46 @@ export class SqliteStore implements UnifiedStore {
   }
 
   async deleteAgent(id: string): Promise<void> {
-    this.db.prepare("DELETE FROM agents WHERE id = ?").run(id);
+    this.db.prepare("DELETE FROM agents WHERE agent_id = ?").run(id);
+  }
+
+  // ═══ Agent Versions ═══
+
+  listAgentVersions(agentId: string): Array<{ createdAt: string; activatedAt: string | null }> {
+    const rows = this.db
+      .prepare(
+        `SELECT created_at, activated_at FROM agents
+         WHERE agent_id = ?
+         ORDER BY created_at DESC`
+      )
+      .all(agentId) as Array<{ created_at: string; activated_at: string | null }>;
+
+    return rows.map((r) => ({
+      createdAt: r.created_at,
+      activatedAt: r.activated_at,
+    }));
+  }
+
+  getAgentVersion(agentId: string, createdAt: string): AgentDefinition | null {
+    const row = this.db
+      .prepare(
+        `SELECT definition FROM agents
+         WHERE agent_id = ? AND created_at = ?`
+      )
+      .get(agentId, createdAt) as { definition: string } | undefined;
+
+    if (!row) return null;
+    return JSON.parse(row.definition) as AgentDefinition;
+  }
+
+  activateAgentVersion(agentId: string, createdAt: string): void {
+    const now = new Date().toISOString();
+    this.db
+      .prepare(
+        `UPDATE agents SET activated_at = ?
+         WHERE agent_id = ? AND created_at = ?`
+      )
+      .run(now, agentId, createdAt);
   }
 
   // ═══ SessionStore ═══

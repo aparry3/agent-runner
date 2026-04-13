@@ -101,6 +101,8 @@ export type {
   SessionStore,
   ContextStore,
   LogStore,
+  ProviderStore,
+  ProviderConfig,
   UnifiedStore,
 
   // Model Provider

@@ -56,25 +56,23 @@
   "dependencies": {
     "ai": "^4.3.0",
     "nanoid": "^5.1.0",
-    "zod": "^3.25.0"
+    "zod": "^3.25.0",
+    "@ai-sdk/openai": "^3.0.0",
+    "@ai-sdk/anthropic": "^3.0.0",
+    "@ai-sdk/google": "^3.0.0",
+    "@ai-sdk/mistral": "^3.0.0",
+    "@ai-sdk/xai": "^3.0.0",
+    "@ai-sdk/groq": "^3.0.0",
+    "@ai-sdk/deepseek": "^2.0.0",
+    "@ai-sdk/perplexity": "^3.0.0",
+    "@ai-sdk/cohere": "^3.0.0",
+    "@ai-sdk/azure": "^3.0.0"
   },
   "peerDependencies": {
-    "@ai-sdk/anthropic": "^1.0.0",
-    "@ai-sdk/google": "^1.0.0",
-    "@ai-sdk/openai": "^1.0.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@opentelemetry/api": "^1.0.0"
   },
   "peerDependenciesMeta": {
-    "@ai-sdk/anthropic": {
-      "optional": true
-    },
-    "@ai-sdk/google": {
-      "optional": true
-    },
-    "@ai-sdk/openai": {
-      "optional": true
-    },
     "@modelcontextprotocol/sdk": {
       "optional": true
     },

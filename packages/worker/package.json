@@ -36,15 +36,13 @@
     "hono": "^4.12.0",
     "@hono/node-server": "^1.19.0",
     "yaml": "^2.8.0",
-    "zod": "^3.25.0"
-  },
-  "peerDependencies": {
-    "@agent-runner/core": "workspace:*",
-    "@agent-runner/manifest": "workspace:*"
-  },
-  "devDependencies": {
+    "zod": "^3.25.0",
+    "dotenv": "^16.5.0",
     "@agent-runner/core": "workspace:*",
     "@agent-runner/manifest": "workspace:*",
+    "@agent-runner/store-postgres": "workspace:*"
+  },
+  "devDependencies": {
     "@biomejs/biome": "^1.9.0",
     "@types/node": "^22.0.0",
     "tsup": "^8.5.0",

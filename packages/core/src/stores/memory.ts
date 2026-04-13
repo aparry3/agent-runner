@@ -4,6 +4,8 @@ import type {
   SessionStore,
   ContextStore,
   LogStore,
+  ProviderStore,
+  ProviderConfig,
   UnifiedStore,
   Message,
   SessionSummary,
@@ -16,32 +18,80 @@ import type {
  * In-memory store implementation. Useful for testing and ephemeral usage.
  * All data is lost when the process exits.
  */
+interface AgentVersion {
+  agent: AgentDefinition;
+  createdAt: string;
+  activatedAt: string | null;
+}
+
 export class MemoryStore implements UnifiedStore {
-  private agents = new Map<string, AgentDefinition>();
+  private agentVersions = new Map<string, AgentVersion[]>();
   private sessions = new Map<string, { agentId?: string; messages: Message[]; createdAt: string; updatedAt: string }>();
   private contexts = new Map<string, ContextEntry[]>();
   private logs: InvocationLog[] = [];
+  private providers = new Map<string, ProviderConfig>();
 
   // ═══ AgentStore ═══
 
   async getAgent(id: string): Promise<AgentDefinition | null> {
-    return this.agents.get(id) ?? null;
+    const versions = this.agentVersions.get(id);
+    if (!versions || versions.length === 0) return null;
+    // Find the version with the most recent activatedAt
+    const active = versions
+      .filter(v => v.activatedAt !== null)
+      .sort((a, b) => b.activatedAt!.localeCompare(a.activatedAt!));
+    if (active.length > 0) return active[0].agent;
+    // Fallback to most recent by createdAt
+    return versions[versions.length - 1].agent;
   }
 
   async listAgents(): Promise<Array<{ id: string; name: string; description?: string }>> {
-    return Array.from(this.agents.values()).map(a => ({
-      id: a.id,
-      name: a.name,
-      description: a.description,
-    }));
+    const result: Array<{ id: string; name: string; description?: string }> = [];
+    for (const [id] of this.agentVersions) {
+      const agent = await this.getAgent(id);
+      if (agent) {
+        result.push({ id: agent.id, name: agent.name, description: agent.description });
+      }
+    }
+    return result;
   }
 
   async putAgent(agent: AgentDefinition): Promise<void> {
-    this.agents.set(agent.id, { ...agent, updatedAt: new Date().toISOString() });
+    const now = new Date().toISOString();
+    const versions = this.agentVersions.get(agent.id) ?? [];
+    versions.push({
+      agent: { ...agent, createdAt: now, updatedAt: now },
+      createdAt: now,
+      activatedAt: now,
+    });
+    this.agentVersions.set(agent.id, versions);
   }
 
   async deleteAgent(id: string): Promise<void> {
-    this.agents.delete(id);
+    this.agentVersions.delete(id);
+  }
+
+  // ═══ Agent Versions ═══
+
+  listAgentVersions(agentId: string): Array<{ createdAt: string; activatedAt: string | null }> {
+    const versions = this.agentVersions.get(agentId) ?? [];
+    return versions
+      .map(v => ({ createdAt: v.createdAt, activatedAt: v.activatedAt }))
+      .reverse();
+  }
+
+  getAgentVersion(agentId: string, createdAt: string): AgentDefinition | null {
+    const versions = this.agentVersions.get(agentId) ?? [];
+    const found = versions.find(v => v.createdAt === createdAt);
+    return found?.agent ?? null;
+  }
+
+  activateAgentVersion(agentId: string, createdAt: string): void {
+    const versions = this.agentVersions.get(agentId) ?? [];
+    const found = versions.find(v => v.createdAt === createdAt);
+    if (found) {
+      found.activatedAt = new Date().toISOString();
+    }
   }
 
   // ═══ SessionStore ═══
@@ -134,5 +184,26 @@ export class MemoryStore implements UnifiedStore {
 
   async getLog(id: string): Promise<InvocationLog | null> {
     return this.logs.find(l => l.id === id) ?? null;
+  }
+
+  // ═══ ProviderStore ═══
+
+  async getProvider(id: string): Promise<ProviderConfig | null> {
+    return this.providers.get(id) ?? null;
+  }
+
+  async listProviders(): Promise<Array<{ id: string; configured: boolean }>> {
+    return Array.from(this.providers.values()).map(p => ({
+      id: p.id,
+      configured: !!p.apiKey,
+    }));
+  }
+
+  async putProvider(provider: ProviderConfig): Promise<void> {
+    this.providers.set(provider.id, { ...provider, updatedAt: new Date().toISOString() });
+  }
+
+  async deleteProvider(id: string): Promise<void> {
+    this.providers.delete(id);
   }
 }

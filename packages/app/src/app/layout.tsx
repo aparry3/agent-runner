@@ -24,6 +24,8 @@ export default function RootLayout({
             <NavLink href="/sessions">Sessions</NavLink>
             <NavLink href="/logs">Logs</NavLink>
             <NavLink href="/tools">Tools</NavLink>
+            <NavLink href="/settings">Settings</NavLink>
+            <NavLink href="/account">Account</NavLink>
           </nav>
           <main className="flex-1 p-6">{children}</main>
         </div>

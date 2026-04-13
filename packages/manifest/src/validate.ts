@@ -40,6 +40,8 @@ export interface ValidationContext {
   resolveAgent: (id: string) => Promise<boolean>;
   resolveTools: (server: string) => Promise<string[]>;
   localTools: string[];
+  /** Check if a provider has a configured API key */
+  isProviderConfigured?: (provider: string) => Promise<boolean>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -620,6 +622,17 @@ async function validateExternal(
 ): Promise<void> {
   switch (manifest.kind) {
     case "llm":
+      // Check provider is configured
+      if (ctx.isProviderConfigured && manifest.model?.provider) {
+        const configured = await ctx.isProviderConfigured(manifest.model.provider);
+        if (!configured) {
+          errors.push({
+            level: "external",
+            path: p(path, "model.provider"),
+            message: `Provider '${manifest.model.provider}' is not configured. Add an API key in Settings > Providers.`,
+          });
+        }
+      }
       if (manifest.tools) {
         await validateToolEntriesExternal(manifest.tools, p(path, "tools"), errors, warnings, ctx);
       }

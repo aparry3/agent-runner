@@ -7,6 +7,8 @@ import type {
   SessionStore,
   ContextStore,
   LogStore,
+  ProviderStore,
+  ProviderConfig,
   UnifiedStore,
   Message,
   SessionSummary,
@@ -45,6 +47,7 @@ export class JsonFileStore implements UnifiedStore {
     await mkdir(join(this.basePath, "sessions"), { recursive: true });
     await mkdir(join(this.basePath, "context"), { recursive: true });
     await mkdir(join(this.basePath, "logs"), { recursive: true });
+    await mkdir(join(this.basePath, "providers"), { recursive: true });
     this.initialized = true;
   }
 
@@ -235,5 +238,49 @@ export class JsonFileStore implements UnifiedStore {
     return this.readJson<InvocationLog>(
       join(this.basePath, "logs", `${this.sanitizeFilename(id)}.json`)
     );
+  }
+
+  // ═══ ProviderStore ═══
+
+  async getProvider(id: string): Promise<ProviderConfig | null> {
+    await this.ensureDirs();
+    return this.readJson<ProviderConfig>(
+      join(this.basePath, "providers", `${this.sanitizeFilename(id)}.json`)
+    );
+  }
+
+  async listProviders(): Promise<Array<{ id: string; configured: boolean }>> {
+    await this.ensureDirs();
+    const dir = join(this.basePath, "providers");
+    try {
+      const files = await readdir(dir);
+      const result: Array<{ id: string; configured: boolean }> = [];
+      for (const file of files) {
+        if (!file.endsWith(".json")) continue;
+        const provider = await this.readJson<ProviderConfig>(join(dir, file));
+        if (provider) {
+          result.push({ id: provider.id, configured: !!provider.apiKey });
+        }
+      }
+      return result;
+    } catch {
+      return [];
+    }
+  }
+
+  async putProvider(provider: ProviderConfig): Promise<void> {
+    await this.ensureDirs();
+    const filePath = join(this.basePath, "providers", `${this.sanitizeFilename(provider.id)}.json`);
+    await writeFile(filePath, JSON.stringify({ ...provider, updatedAt: new Date().toISOString() }, null, 2));
+  }
+
+  async deleteProvider(id: string): Promise<void> {
+    await this.ensureDirs();
+    const filePath = join(this.basePath, "providers", `${this.sanitizeFilename(id)}.json`);
+    try {
+      await unlink(filePath);
+    } catch {
+      // file doesn't exist, that's fine
+    }
   }
 }

@@ -17,6 +17,7 @@ import type {
   SessionStore,
   ContextStore,
   LogStore,
+  ProviderStore,
   ModelProvider,
 } from "./types.js";
 import { ToolRegistry } from "./tool.js";
@@ -57,6 +58,7 @@ export class Runner {
   private sessionStore: SessionStore;
   private contextStore: ContextStore;
   private logStore: LogStore;
+  private _providerStore: ProviderStore | undefined;
   private modelProvider: ModelProvider;
   private toolRegistry: ToolRegistry;
   private mcpManager: MCPClientManager | null = null;
@@ -84,8 +86,14 @@ export class Runner {
       this.logStore = config.logStore ?? defaultStore;
     }
 
-    // Model provider
-    this.modelProvider = config.modelProvider ?? new AISDKModelProvider();
+    // Model provider — pass the provider store so it can look up API keys
+    const unifiedStore = config.store;
+    this._providerStore = unifiedStore && "getProvider" in unifiedStore
+      ? unifiedStore as ProviderStore
+      : undefined;
+    this.modelProvider = config.modelProvider ?? new AISDKModelProvider({
+      providerStore: this._providerStore,
+    });
 
     // Tool registry
     this.toolRegistry = new ToolRegistry();
@@ -131,6 +139,8 @@ export class Runner {
   get contexts(): ContextStore { return this.contextStore; }
   /** Access the log store */
   get logs(): LogStore { return this.logStore; }
+  /** Access the provider store (if available) */
+  get providers(): ProviderStore | undefined { return this._providerStore; }
   /** Access the model provider */
   get model(): ModelProvider { return this.modelProvider; }
   /** Access the runner config */

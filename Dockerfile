@@ -25,6 +25,7 @@ FROM deps AS build
 COPY packages/ packages/
 RUN pnpm --filter @agent-runner/core build
 RUN pnpm --filter @agent-runner/manifest build
+RUN pnpm --filter @agent-runner/store-postgres build
 RUN pnpm --filter @agent-runner/worker build
 RUN pnpm --filter @agent-runner/app build
 
@@ -42,6 +43,7 @@ COPY --from=build /app/packages/manifest/dist ./packages/manifest/dist
 COPY --from=build /app/packages/manifest/package.json ./packages/manifest/
 COPY --from=build /app/packages/worker/dist ./packages/worker/dist
 COPY --from=build /app/packages/worker/package.json ./packages/worker/
+COPY --from=deps /app/packages/store-postgres/node_modules ./packages/store-postgres/node_modules
 COPY --from=build /app/packages/store-postgres/dist ./packages/store-postgres/dist
 COPY --from=build /app/packages/store-postgres/package.json ./packages/store-postgres/
 COPY pnpm-workspace.yaml package.json ./
@@ -54,6 +56,8 @@ CMD ["node", "packages/worker/dist/server.js"]
 # ═══════════════════════════════════════════════════════════════
 FROM base AS app
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/app/node_modules ./packages/app/node_modules
+COPY --from=deps /app/packages/store-postgres/node_modules ./packages/store-postgres/node_modules
 COPY --from=build /app/packages/app/.next ./packages/app/.next
 COPY --from=build /app/packages/app/package.json ./packages/app/
 COPY --from=build /app/packages/app/next.config.ts ./packages/app/

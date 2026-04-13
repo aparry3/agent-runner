@@ -374,7 +374,27 @@ export interface LogStore {
   getLog(id: string): Promise<InvocationLog | null>;
 }
 
-export type UnifiedStore = AgentStore & SessionStore & ContextStore & LogStore;
+export interface ProviderConfig {
+  /** Provider identifier (e.g., "openai", "anthropic") */
+  id: string;
+  /** API key */
+  apiKey: string;
+  /** Optional base URL override (for OpenAI-compatible providers) */
+  baseUrl?: string;
+  /** Optional provider-specific configuration */
+  config?: Record<string, unknown>;
+  /** When this config was last updated */
+  updatedAt?: string;
+}
+
+export interface ProviderStore {
+  getProvider(id: string): Promise<ProviderConfig | null>;
+  listProviders(): Promise<Array<{ id: string; configured: boolean }>>;
+  putProvider(provider: ProviderConfig): Promise<void>;
+  deleteProvider(id: string): Promise<void>;
+}
+
+export type UnifiedStore = AgentStore & SessionStore & ContextStore & LogStore & ProviderStore;
 
 // ═══════════════════════════════════════════════════════════════════════
 // Model Provider

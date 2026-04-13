@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
     "@agent-runner/manifest",
     "@agent-runner/worker",
   ],
+  serverExternalPackages: [
+    "@agent-runner/store-postgres",
+  ],
 };
 
 export default nextConfig;

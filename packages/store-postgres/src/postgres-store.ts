@@ -5,6 +5,8 @@ import type {
   SessionStore,
   ContextStore,
   LogStore,
+  ProviderStore,
+  ProviderConfig,
   UnifiedStore,
   Message,
   SessionSummary,
@@ -85,6 +87,17 @@ const MIGRATIONS: string[] = [
     version INTEGER PRIMARY KEY
   );
   INSERT INTO ar_schema_version (version) VALUES (1);
+  `,
+  // v2: Provider configuration
+  `
+  CREATE TABLE IF NOT EXISTS ar_providers (
+    id TEXT PRIMARY KEY,
+    api_key TEXT NOT NULL,
+    base_url TEXT,
+    config JSONB,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  UPDATE ar_schema_version SET version = 2;
   `,
 ];
 
@@ -541,6 +554,55 @@ export class PostgresStore implements UnifiedStore {
       error: r.error ?? undefined,
       timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
     };
+  }
+
+  // ═══ ProviderStore ═══
+
+  async getProvider(id: string): Promise<ProviderConfig | null> {
+    await this.ensureMigrated();
+    const { rows } = await this.pool.query(
+      `SELECT id, api_key, base_url, config, updated_at FROM ${this.prefix}providers WHERE id = $1`,
+      [id]
+    );
+    if (rows.length === 0) return null;
+    const r = rows[0];
+    return {
+      id: r.id,
+      apiKey: r.api_key,
+      baseUrl: r.base_url ?? undefined,
+      config: r.config ?? undefined,
+      updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at),
+    };
+  }
+
+  async listProviders(): Promise<Array<{ id: string; configured: boolean }>> {
+    await this.ensureMigrated();
+    const { rows } = await this.pool.query(
+      `SELECT id, api_key FROM ${this.prefix}providers ORDER BY id`
+    );
+    return rows.map((r: { id: string; api_key: string }) => ({
+      id: r.id,
+      configured: !!r.api_key,
+    }));
+  }
+
+  async putProvider(provider: ProviderConfig): Promise<void> {
+    await this.ensureMigrated();
+    await this.pool.query(
+      `INSERT INTO ${this.prefix}providers (id, api_key, base_url, config, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (id) DO UPDATE SET
+         api_key = $2,
+         base_url = $3,
+         config = $4,
+         updated_at = NOW()`,
+      [provider.id, provider.apiKey, provider.baseUrl ?? null, provider.config ? JSON.stringify(provider.config) : null]
+    );
+  }
+
+  async deleteProvider(id: string): Promise<void> {
+    await this.ensureMigrated();
+    await this.pool.query(`DELETE FROM ${this.prefix}providers WHERE id = $1`, [id]);
   }
 
   // ═══ Lifecycle ═══
