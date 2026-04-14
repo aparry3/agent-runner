@@ -9,6 +9,11 @@ interface Provider {
   configured: boolean;
 }
 
+interface Me {
+  userId: string;
+  isSuperAdmin: boolean;
+}
+
 export default function SettingsPage() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -16,6 +21,8 @@ export default function SettingsPage() {
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [saving, setSaving] = useState(false);
+  const [me, setMe] = useState<Me | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const loadProviders = async () => {
     const res = await fetch("/api/providers");
@@ -26,7 +33,19 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadProviders();
+    fetch("/api/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) setMe(data);
+      });
   }, []);
+
+  const copyUserId = async () => {
+    if (!me) return;
+    await navigator.clipboard.writeText(me.userId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   const handleEdit = (provider: Provider) => {
     setEditingId(provider.id);
@@ -69,6 +88,34 @@ export default function SettingsPage() {
         Configure API keys for LLM providers. Keys are stored in the database and used at runtime.
         Environment variables are used as fallback.
       </p>
+
+      {me && (
+        <div className="mb-6 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+          <div className="mb-1 text-sm font-medium text-zinc-950">
+            Your Clerk user ID
+            {me.isSuperAdmin && (
+              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-900">
+                Super admin
+              </span>
+            )}
+          </div>
+          <p className="mb-3 text-xs text-zinc-500">
+            Paste this into <code className="font-mono">SUPER_ADMIN_USER_IDS</code> (comma-separated)
+            in <code className="font-mono">.env.local</code> to unlock the System Agents admin view.
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 select-all rounded bg-stone-100 px-3 py-2 font-mono text-xs text-zinc-900">
+              {me.userId}
+            </code>
+            <button
+              onClick={copyUserId}
+              className="rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-stone-100"
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+        </div>
+      )}
 
       <h2 className="mb-3 text-lg font-semibold text-zinc-900">Providers</h2>
 

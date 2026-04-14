@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireWorkspaceContext, WorkspaceRequiredError } from "@/lib/workspace";
+import { requireUserContext, AuthRequiredError } from "@/lib/user";
 
 export async function GET(
   _req: NextRequest,
@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const { runner } = await requireWorkspaceContext();
+    const { runner } = await requireUserContext();
     if (!runner.providers) {
       return NextResponse.json({ error: "Provider store not available" }, { status: 501 });
     }
@@ -35,7 +35,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const { runner } = await requireWorkspaceContext();
+    const { runner } = await requireUserContext();
     if (!runner.providers) {
       return NextResponse.json({ error: "Provider store not available" }, { status: 501 });
     }
@@ -60,7 +60,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const { runner } = await requireWorkspaceContext();
+    const { runner } = await requireUserContext();
     if (!runner.providers) {
       return NextResponse.json({ error: "Provider store not available" }, { status: 501 });
     }
@@ -73,7 +73,7 @@ export async function DELETE(
 }
 
 function errorResponse(error: unknown) {
-  if (error instanceof WorkspaceRequiredError) {
+  if (error instanceof AuthRequiredError) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
   return NextResponse.json({ error: String(error) }, { status: 500 });

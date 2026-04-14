@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireWorkspaceContext, WorkspaceRequiredError } from "@/lib/workspace";
+import { requireUserContext, AuthRequiredError } from "@/lib/user";
 import { listVersions } from "@/lib/versions";
 
 export async function GET(
@@ -8,11 +8,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const { store } = await requireWorkspaceContext();
+    const { store } = await requireUserContext();
     const versions = await listVersions(store, id);
     return NextResponse.json(versions);
   } catch (error) {
-    if (error instanceof WorkspaceRequiredError) {
+    if (error instanceof AuthRequiredError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
     return NextResponse.json({ error: String(error) }, { status: 500 });

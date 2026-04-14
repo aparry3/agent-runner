@@ -17,20 +17,18 @@ const hasDb = !!url;
 
 describe.skipIf(!hasDb)("PostgresStore (integration)", () => {
   let admin: PostgresStore;
-  let workspaceId: string;
+  const userId = `user_test_${Date.now()}`;
 
   beforeAll(async () => {
     admin = new PostgresStore({ connection: url!, tablePrefix: `art_${Date.now()}_` });
-    const ws = await admin.createWorkspace({ clerkOrgId: `org_${Date.now()}`, name: "Test" });
-    workspaceId = ws.id;
   });
 
   afterAll(async () => {
     await admin.close();
   });
 
-  it("scopes agents to the workspace", async () => {
-    const store = admin.forWorkspace(workspaceId);
+  it("scopes agents to the user", async () => {
+    const store = admin.forUser(userId);
     const agent: AgentDefinition = {
       id: "test",
       name: "Test",
@@ -38,26 +36,23 @@ describe.skipIf(!hasDb)("PostgresStore (integration)", () => {
       model: { provider: "openai", name: "gpt-4o" },
     };
     await store.putAgent(agent);
-    const retrieved = await store.getAgent("test");
-    expect(retrieved?.name).toBe("Test");
+    expect((await store.getAgent("test"))?.name).toBe("Test");
 
-    const wsB = await admin.createWorkspace({ clerkOrgId: `org_b_${Date.now()}`, name: "B" });
-    const storeB = admin.forWorkspace(wsB.id);
+    const storeB = admin.forUser(`user_b_${Date.now()}`);
     expect(await storeB.getAgent("test")).toBeNull();
   });
 
   it("creates, resolves, and revokes API keys", async () => {
-    const { record, rawKey } = await admin.createApiKey({ workspaceId, name: "k" });
+    const { record, rawKey } = await admin.createApiKey({ userId, name: "k" });
     expect(rawKey).toMatch(/^ar_live_/);
 
-    const resolved = await admin.resolveApiKey(rawKey);
-    expect(resolved).toEqual({ workspaceId, keyId: record.id });
+    expect(await admin.resolveApiKey(rawKey)).toEqual({ userId, keyId: record.id });
 
-    await admin.revokeApiKey({ workspaceId, keyId: record.id });
+    await admin.revokeApiKey({ userId, keyId: record.id });
     expect(await admin.resolveApiKey(rawKey)).toBeNull();
   });
 
   it("throws on scoped methods when unscoped", async () => {
-    await expect(admin.getAgent("x")).rejects.toThrow(/workspace not set/);
+    await expect(admin.getAgent("x")).rejects.toThrow(/user not set/);
   });
 });

@@ -5,7 +5,6 @@ import type {
   AgentDefinition,
   ProviderConfig,
   UnifiedStore,
-  Workspace,
   ApiKeyRecord,
   Message,
   SessionSummary,
@@ -92,19 +91,13 @@ const MIGRATIONS = [
   );
   UPDATE schema_version SET version = 2;
   `,
-  // v3: Multi-tenancy. Add workspaces, api keys, workspace_id columns.
-  // Existing dev data is wiped (we can't backfill workspace ownership).
+  // v3: Per-user scoping + API keys. Dev data is wiped (can't backfill).
   `
-  CREATE TABLE IF NOT EXISTS workspaces (
-    id TEXT PRIMARY KEY,
-    clerk_org_id TEXT NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
+  DROP TABLE IF EXISTS workspaces;
 
   CREATE TABLE IF NOT EXISTS api_keys (
     id TEXT PRIMARY KEY,
-    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
     name TEXT NOT NULL,
     key_prefix TEXT NOT NULL,
     key_hash TEXT NOT NULL,
@@ -114,9 +107,8 @@ const MIGRATIONS = [
   );
   CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_hash_active
     ON api_keys(key_hash) WHERE revoked_at IS NULL;
-  CREATE INDEX IF NOT EXISTS idx_api_keys_workspace ON api_keys(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
 
-  -- Wipe and rebuild scoped tables with workspace_id NOT NULL.
   DELETE FROM messages;
   DELETE FROM sessions;
   DELETE FROM context_entries;
@@ -124,18 +116,16 @@ const MIGRATIONS = [
   DELETE FROM agents;
   DELETE FROM providers;
 
-  -- SQLite can't add NOT NULL FK columns to populated tables easily, but
-  -- since we just emptied them, ALTER TABLE ADD COLUMN works.
-  ALTER TABLE agents ADD COLUMN workspace_id TEXT NOT NULL DEFAULT '';
-  ALTER TABLE sessions ADD COLUMN workspace_id TEXT NOT NULL DEFAULT '';
-  ALTER TABLE context_entries ADD COLUMN workspace_id TEXT NOT NULL DEFAULT '';
-  ALTER TABLE invocation_logs ADD COLUMN workspace_id TEXT NOT NULL DEFAULT '';
-  ALTER TABLE providers ADD COLUMN workspace_id TEXT NOT NULL DEFAULT '';
+  ALTER TABLE agents ADD COLUMN user_id TEXT NOT NULL DEFAULT '';
+  ALTER TABLE sessions ADD COLUMN user_id TEXT NOT NULL DEFAULT '';
+  ALTER TABLE context_entries ADD COLUMN user_id TEXT NOT NULL DEFAULT '';
+  ALTER TABLE invocation_logs ADD COLUMN user_id TEXT NOT NULL DEFAULT '';
+  ALTER TABLE providers ADD COLUMN user_id TEXT NOT NULL DEFAULT '';
 
-  CREATE INDEX IF NOT EXISTS idx_agents_workspace ON agents(workspace_id);
-  CREATE INDEX IF NOT EXISTS idx_sessions_workspace ON sessions(workspace_id);
-  CREATE INDEX IF NOT EXISTS idx_context_entries_workspace ON context_entries(workspace_id);
-  CREATE INDEX IF NOT EXISTS idx_invocation_logs_workspace ON invocation_logs(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_agents_user ON agents(user_id);
+  CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_context_entries_user ON context_entries(user_id);
+  CREATE INDEX IF NOT EXISTS idx_invocation_logs_user ON invocation_logs(user_id);
 
   UPDATE schema_version SET version = 3;
   `,
@@ -145,14 +135,14 @@ export interface SqliteStoreOptions {
   path: string;
   wal?: boolean;
   verbose?: boolean;
-  workspaceId?: string;
+  userId?: string;
 }
 
 export class SqliteStore implements UnifiedStore {
   private db: DatabaseType;
   private ownsDb: boolean;
   private lastTs = 0;
-  readonly workspaceId: string | null;
+  readonly userId: string | null;
 
   private nextTimestamp(): string {
     const now = Date.now();
@@ -161,11 +151,11 @@ export class SqliteStore implements UnifiedStore {
     return new Date(next).toISOString();
   }
 
-  constructor(options: SqliteStoreOptions | string, _internal?: { db: DatabaseType; workspaceId: string }) {
+  constructor(options: SqliteStoreOptions | string, _internal?: { db: DatabaseType; userId: string }) {
     if (_internal) {
       this.db = _internal.db;
       this.ownsDb = false;
-      this.workspaceId = _internal.workspaceId;
+      this.userId = _internal.userId;
       return;
     }
 
@@ -176,7 +166,7 @@ export class SqliteStore implements UnifiedStore {
       verbose: opts.verbose ? console.log : undefined,
     });
     this.ownsDb = true;
-    this.workspaceId = opts.workspaceId ?? null;
+    this.userId = opts.userId ?? null;
 
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("synchronous = NORMAL");
@@ -190,15 +180,15 @@ export class SqliteStore implements UnifiedStore {
     this.migrate();
   }
 
-  forWorkspace(workspaceId: string): SqliteStore {
-    return new SqliteStore({ path: ":memory:" }, { db: this.db, workspaceId });
+  forUser(userId: string): SqliteStore {
+    return new SqliteStore({ path: ":memory:" }, { db: this.db, userId });
   }
 
-  private requireWorkspace(): string {
-    if (!this.workspaceId) {
-      throw new Error("SqliteStore: workspace not set. Call forWorkspace(id) first.");
+  private requireUser(): string {
+    if (!this.userId) {
+      throw new Error("SqliteStore: user not set. Call forUser(id) first.");
     }
-    return this.workspaceId;
+    return this.userId;
   }
 
   private migrate(): void {
@@ -222,32 +212,32 @@ export class SqliteStore implements UnifiedStore {
   // ═══ AgentStore ═══
 
   async getAgent(id: string): Promise<AgentDefinition | null> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const row = this.db
       .prepare(
         `SELECT definition FROM agents
-         WHERE workspace_id = ? AND agent_id = ?
+         WHERE user_id = ? AND agent_id = ?
          ORDER BY activated_at DESC NULLS LAST
          LIMIT 1`
       )
-      .get(ws, id) as { definition: string } | undefined;
+      .get(u, id) as { definition: string } | undefined;
     if (!row) return null;
     return JSON.parse(row.definition) as AgentDefinition;
   }
 
   async listAgents(): Promise<Array<{ id: string; name: string; description?: string }>> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const rows = this.db
       .prepare(
         `SELECT agent_id, name, description FROM agents
-         WHERE workspace_id = ? AND (agent_id, activated_at) IN (
+         WHERE user_id = ? AND (agent_id, activated_at) IN (
            SELECT agent_id, MAX(activated_at) FROM agents
-           WHERE workspace_id = ? AND activated_at IS NOT NULL
+           WHERE user_id = ? AND activated_at IS NOT NULL
            GROUP BY agent_id
          )
          ORDER BY name`
       )
-      .all(ws, ws) as Array<{ agent_id: string; name: string; description: string | null }>;
+      .all(u, u) as Array<{ agent_id: string; name: string; description: string | null }>;
 
     return rows.map((r) => ({
       id: r.agent_id,
@@ -257,70 +247,70 @@ export class SqliteStore implements UnifiedStore {
   }
 
   async putAgent(agent: AgentDefinition): Promise<void> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const now = this.nextTimestamp();
     const agentWithTimestamp = { ...agent, createdAt: now, updatedAt: now };
     this.db
       .prepare(
-        `INSERT INTO agents (workspace_id, agent_id, name, description, definition, created_at, activated_at)
+        `INSERT INTO agents (user_id, agent_id, name, description, definition, created_at, activated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(ws, agent.id, agent.name, agent.description ?? null, JSON.stringify(agentWithTimestamp), now, now);
+      .run(u, agent.id, agent.name, agent.description ?? null, JSON.stringify(agentWithTimestamp), now, now);
   }
 
   async deleteAgent(id: string): Promise<void> {
-    const ws = this.requireWorkspace();
-    this.db.prepare("DELETE FROM agents WHERE workspace_id = ? AND agent_id = ?").run(ws, id);
+    const u = this.requireUser();
+    this.db.prepare("DELETE FROM agents WHERE user_id = ? AND agent_id = ?").run(u, id);
   }
 
   async listAgentVersions(agentId: string): Promise<Array<{ createdAt: string; activatedAt: string | null }>> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const rows = this.db
       .prepare(
         `SELECT created_at, activated_at FROM agents
-         WHERE workspace_id = ? AND agent_id = ?
+         WHERE user_id = ? AND agent_id = ?
          ORDER BY created_at DESC`
       )
-      .all(ws, agentId) as Array<{ created_at: string; activated_at: string | null }>;
+      .all(u, agentId) as Array<{ created_at: string; activated_at: string | null }>;
     return rows.map((r) => ({ createdAt: r.created_at, activatedAt: r.activated_at }));
   }
 
   async getAgentVersion(agentId: string, createdAt: string): Promise<AgentDefinition | null> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const row = this.db
       .prepare(
         `SELECT definition FROM agents
-         WHERE workspace_id = ? AND agent_id = ? AND created_at = ?`
+         WHERE user_id = ? AND agent_id = ? AND created_at = ?`
       )
-      .get(ws, agentId, createdAt) as { definition: string } | undefined;
+      .get(u, agentId, createdAt) as { definition: string } | undefined;
     if (!row) return null;
     return JSON.parse(row.definition) as AgentDefinition;
   }
 
   async activateAgentVersion(agentId: string, createdAt: string): Promise<void> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const now = this.nextTimestamp();
     this.db
       .prepare(
         `UPDATE agents SET activated_at = ?
-         WHERE workspace_id = ? AND agent_id = ? AND created_at = ?`
+         WHERE user_id = ? AND agent_id = ? AND created_at = ?`
       )
-      .run(now, ws, agentId, createdAt);
+      .run(now, u, agentId, createdAt);
   }
 
   // ═══ SessionStore ═══
 
   async getMessages(sessionId: string): Promise<Message[]> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const rows = this.db
       .prepare(
         `SELECT m.role, m.content, m.tool_calls, m.tool_call_id, m.timestamp
          FROM messages m
          INNER JOIN sessions s ON s.id = m.session_id
-         WHERE s.workspace_id = ? AND m.session_id = ?
+         WHERE s.user_id = ? AND m.session_id = ?
          ORDER BY m.id`
       )
-      .all(ws, sessionId) as Array<{
+      .all(u, sessionId) as Array<{
       role: string;
       content: string;
       tool_calls: string | null;
@@ -341,14 +331,12 @@ export class SqliteStore implements UnifiedStore {
   }
 
   async append(sessionId: string, messages: Message[]): Promise<void> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const now = new Date().toISOString();
 
-    const checkOwnership = this.db.prepare(
-      "SELECT workspace_id FROM sessions WHERE id = ?"
-    );
+    const checkOwnership = this.db.prepare("SELECT user_id FROM sessions WHERE id = ?");
     const upsertSession = this.db.prepare(
-      `INSERT INTO sessions (workspace_id, id, created_at, updated_at) VALUES (?, ?, ?, ?)
+      `INSERT INTO sessions (user_id, id, created_at, updated_at) VALUES (?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at`
     );
     const insertMsg = this.db.prepare(
@@ -357,11 +345,11 @@ export class SqliteStore implements UnifiedStore {
     );
 
     const transaction = this.db.transaction(() => {
-      const existing = checkOwnership.get(sessionId) as { workspace_id: string } | undefined;
-      if (existing && existing.workspace_id !== ws) {
-        throw new Error(`Session ${sessionId} belongs to a different workspace`);
+      const existing = checkOwnership.get(sessionId) as { user_id: string } | undefined;
+      if (existing && existing.user_id !== u) {
+        throw new Error(`Session ${sessionId} belongs to a different user`);
       }
-      upsertSession.run(ws, sessionId, now, now);
+      upsertSession.run(u, sessionId, now, now);
       for (const msg of messages) {
         insertMsg.run(
           sessionId,
@@ -378,30 +366,30 @@ export class SqliteStore implements UnifiedStore {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const transaction = this.db.transaction(() => {
       this.db
         .prepare(
           `DELETE FROM messages WHERE session_id IN (
-            SELECT id FROM sessions WHERE workspace_id = ? AND id = ?
+            SELECT id FROM sessions WHERE user_id = ? AND id = ?
           )`
         )
-        .run(ws, sessionId);
-      this.db.prepare("DELETE FROM sessions WHERE workspace_id = ? AND id = ?").run(ws, sessionId);
+        .run(u, sessionId);
+      this.db.prepare("DELETE FROM sessions WHERE user_id = ? AND id = ?").run(u, sessionId);
     });
     transaction();
   }
 
   async listSessions(agentId?: string): Promise<SessionSummary[]> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     let query = `
       SELECT s.id, s.agent_id, s.created_at, s.updated_at,
              COUNT(m.id) as message_count
       FROM sessions s
       LEFT JOIN messages m ON m.session_id = s.id
-      WHERE s.workspace_id = ?
+      WHERE s.user_id = ?
     `;
-    const params: string[] = [ws];
+    const params: string[] = [u];
 
     if (agentId) {
       query += " AND s.agent_id = ?";
@@ -430,13 +418,13 @@ export class SqliteStore implements UnifiedStore {
   // ═══ ContextStore ═══
 
   async getContext(contextId: string): Promise<ContextEntry[]> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const rows = this.db
       .prepare(
         `SELECT context_id, agent_id, invocation_id, content, created_at FROM context_entries
-         WHERE workspace_id = ? AND context_id = ? ORDER BY id`
+         WHERE user_id = ? AND context_id = ? ORDER BY id`
       )
-      .all(ws, contextId) as Array<{
+      .all(u, contextId) as Array<{
       context_id: string;
       agent_id: string;
       invocation_id: string;
@@ -454,34 +442,34 @@ export class SqliteStore implements UnifiedStore {
   }
 
   async addContext(contextId: string, entry: ContextEntry): Promise<void> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     this.db
       .prepare(
-        `INSERT INTO context_entries (workspace_id, context_id, agent_id, invocation_id, content, created_at)
+        `INSERT INTO context_entries (user_id, context_id, agent_id, invocation_id, content, created_at)
          VALUES (?, ?, ?, ?, ?, ?)`
       )
-      .run(ws, contextId, entry.agentId, entry.invocationId, entry.content, entry.createdAt);
+      .run(u, contextId, entry.agentId, entry.invocationId, entry.content, entry.createdAt);
   }
 
   async clearContext(contextId: string): Promise<void> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     this.db
-      .prepare("DELETE FROM context_entries WHERE workspace_id = ? AND context_id = ?")
-      .run(ws, contextId);
+      .prepare("DELETE FROM context_entries WHERE user_id = ? AND context_id = ?")
+      .run(u, contextId);
   }
 
   // ═══ LogStore ═══
 
   async log(entry: InvocationLog): Promise<void> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     this.db
       .prepare(
-        `INSERT INTO invocation_logs (workspace_id, id, agent_id, session_id, input, output, tool_calls,
+        `INSERT INTO invocation_logs (user_id, id, agent_id, session_id, input, output, tool_calls,
           prompt_tokens, completion_tokens, total_tokens, duration, model, error, timestamp)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
-        ws,
+        u,
         entry.id,
         entry.agentId,
         entry.sessionId ?? null,
@@ -499,9 +487,9 @@ export class SqliteStore implements UnifiedStore {
   }
 
   async getLogs(filter?: LogFilter): Promise<InvocationLog[]> {
-    const ws = this.requireWorkspace();
-    let query = "SELECT * FROM invocation_logs WHERE workspace_id = ?";
-    const params: unknown[] = [ws];
+    const u = this.requireUser();
+    let query = "SELECT * FROM invocation_logs WHERE user_id = ?";
+    const params: unknown[] = [u];
 
     if (filter?.agentId) {
       query += " AND agent_id = ?";
@@ -532,10 +520,10 @@ export class SqliteStore implements UnifiedStore {
   }
 
   async getLog(id: string): Promise<InvocationLog | null> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const row = this.db
-      .prepare("SELECT * FROM invocation_logs WHERE workspace_id = ? AND id = ?")
-      .get(ws, id) as LogRow | undefined;
+      .prepare("SELECT * FROM invocation_logs WHERE user_id = ? AND id = ?")
+      .get(u, id) as LogRow | undefined;
     if (!row) return null;
     return rowToLog(row);
   }
@@ -543,12 +531,12 @@ export class SqliteStore implements UnifiedStore {
   // ═══ ProviderStore ═══
 
   async getProvider(id: string): Promise<ProviderConfig | null> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const row = this.db
       .prepare(
-        "SELECT id, api_key, base_url, config, updated_at FROM providers WHERE workspace_id = ? AND id = ?"
+        "SELECT id, api_key, base_url, config, updated_at FROM providers WHERE user_id = ? AND id = ?"
       )
-      .get(ws, id) as
+      .get(u, id) as
       | { id: string; api_key: string; base_url: string | null; config: string | null; updated_at: string }
       | undefined;
     if (!row) return null;
@@ -562,43 +550,41 @@ export class SqliteStore implements UnifiedStore {
   }
 
   async listProviders(): Promise<Array<{ id: string; configured: boolean }>> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const rows = this.db
-      .prepare("SELECT id, api_key FROM providers WHERE workspace_id = ? ORDER BY id")
-      .all(ws) as Array<{ id: string; api_key: string }>;
+      .prepare("SELECT id, api_key FROM providers WHERE user_id = ? ORDER BY id")
+      .all(u) as Array<{ id: string; api_key: string }>;
     return rows.map((r) => ({ id: r.id, configured: !!r.api_key }));
   }
 
   async putProvider(provider: ProviderConfig): Promise<void> {
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const now = new Date().toISOString();
-    // Per-workspace upsert: SQLite single-PK on id wouldn't work cross-workspace,
-    // so emulate workspace-scoped upsert manually.
     const existing = this.db
-      .prepare("SELECT id FROM providers WHERE workspace_id = ? AND id = ?")
-      .get(ws, provider.id);
+      .prepare("SELECT id FROM providers WHERE user_id = ? AND id = ?")
+      .get(u, provider.id);
     if (existing) {
       this.db
         .prepare(
           `UPDATE providers SET api_key = ?, base_url = ?, config = ?, updated_at = ?
-           WHERE workspace_id = ? AND id = ?`
+           WHERE user_id = ? AND id = ?`
         )
         .run(
           provider.apiKey,
           provider.baseUrl ?? null,
           provider.config ? JSON.stringify(provider.config) : null,
           now,
-          ws,
+          u,
           provider.id
         );
     } else {
       this.db
         .prepare(
-          `INSERT INTO providers (workspace_id, id, api_key, base_url, config, updated_at)
+          `INSERT INTO providers (user_id, id, api_key, base_url, config, updated_at)
            VALUES (?, ?, ?, ?, ?, ?)`
         )
         .run(
-          ws,
+          u,
           provider.id,
           provider.apiKey,
           provider.baseUrl ?? null,
@@ -609,42 +595,13 @@ export class SqliteStore implements UnifiedStore {
   }
 
   async deleteProvider(id: string): Promise<void> {
-    const ws = this.requireWorkspace();
-    this.db.prepare("DELETE FROM providers WHERE workspace_id = ? AND id = ?").run(ws, id);
-  }
-
-  // ═══ WorkspaceStore (unscoped) ═══
-
-  async getWorkspaceByClerkOrgId(clerkOrgId: string): Promise<Workspace | null> {
-    const row = this.db
-      .prepare("SELECT id, clerk_org_id, name, created_at FROM workspaces WHERE clerk_org_id = ?")
-      .get(clerkOrgId) as { id: string; clerk_org_id: string; name: string; created_at: string } | undefined;
-    if (!row) return null;
-    return rowToWorkspace(row);
-  }
-
-  async getWorkspaceById(id: string): Promise<Workspace | null> {
-    const row = this.db
-      .prepare("SELECT id, clerk_org_id, name, created_at FROM workspaces WHERE id = ?")
-      .get(id) as { id: string; clerk_org_id: string; name: string; created_at: string } | undefined;
-    if (!row) return null;
-    return rowToWorkspace(row);
-  }
-
-  async createWorkspace(params: { clerkOrgId: string; name: string }): Promise<Workspace> {
-    const existing = await this.getWorkspaceByClerkOrgId(params.clerkOrgId);
-    if (existing) return existing;
-    const id = randomUUID();
-    const now = new Date().toISOString();
-    this.db
-      .prepare("INSERT INTO workspaces (id, clerk_org_id, name, created_at) VALUES (?, ?, ?, ?)")
-      .run(id, params.clerkOrgId, params.name, now);
-    return { id, clerkOrgId: params.clerkOrgId, name: params.name, createdAt: now };
+    const u = this.requireUser();
+    this.db.prepare("DELETE FROM providers WHERE user_id = ? AND id = ?").run(u, id);
   }
 
   // ═══ ApiKeyStore (unscoped) ═══
 
-  async createApiKey(params: { workspaceId: string; name: string }): Promise<{ record: ApiKeyRecord; rawKey: string }> {
+  async createApiKey(params: { userId: string; name: string }): Promise<{ record: ApiKeyRecord; rawKey: string }> {
     const rawKey = `ar_live_${randomBytes(24).toString("base64url")}`;
     const keyPrefix = rawKey.slice(0, 14);
     const keyHash = createHash("sha256").update(rawKey).digest("hex");
@@ -652,14 +609,14 @@ export class SqliteStore implements UnifiedStore {
     const now = new Date().toISOString();
     this.db
       .prepare(
-        `INSERT INTO api_keys (id, workspace_id, name, key_prefix, key_hash, created_at)
+        `INSERT INTO api_keys (id, user_id, name, key_prefix, key_hash, created_at)
          VALUES (?, ?, ?, ?, ?, ?)`
       )
-      .run(id, params.workspaceId, params.name, keyPrefix, keyHash, now);
+      .run(id, params.userId, params.name, keyPrefix, keyHash, now);
     return {
       record: {
         id,
-        workspaceId: params.workspaceId,
+        userId: params.userId,
         name: params.name,
         keyPrefix,
         createdAt: now,
@@ -670,39 +627,39 @@ export class SqliteStore implements UnifiedStore {
     };
   }
 
-  async listApiKeys(workspaceId: string): Promise<ApiKeyRecord[]> {
+  async listApiKeys(userId: string): Promise<ApiKeyRecord[]> {
     const rows = this.db
       .prepare(
-        `SELECT id, workspace_id, name, key_prefix, created_at, last_used_at, revoked_at
-         FROM api_keys WHERE workspace_id = ? ORDER BY created_at DESC`
+        `SELECT id, user_id, name, key_prefix, created_at, last_used_at, revoked_at
+         FROM api_keys WHERE user_id = ? ORDER BY created_at DESC`
       )
-      .all(workspaceId) as Array<ApiKeyRow>;
+      .all(userId) as Array<ApiKeyRow>;
     return rows.map(rowToApiKey);
   }
 
-  async revokeApiKey(params: { workspaceId: string; keyId: string }): Promise<void> {
+  async revokeApiKey(params: { userId: string; keyId: string }): Promise<void> {
     const now = new Date().toISOString();
     this.db
       .prepare(
         `UPDATE api_keys SET revoked_at = ?
-         WHERE id = ? AND workspace_id = ? AND revoked_at IS NULL`
+         WHERE id = ? AND user_id = ? AND revoked_at IS NULL`
       )
-      .run(now, params.keyId, params.workspaceId);
+      .run(now, params.keyId, params.userId);
   }
 
-  async resolveApiKey(rawKey: string): Promise<{ workspaceId: string; keyId: string } | null> {
+  async resolveApiKey(rawKey: string): Promise<{ userId: string; keyId: string } | null> {
     const keyHash = createHash("sha256").update(rawKey).digest("hex");
     const row = this.db
       .prepare(
-        `SELECT id, workspace_id FROM api_keys
+        `SELECT id, user_id FROM api_keys
          WHERE key_hash = ? AND revoked_at IS NULL`
       )
-      .get(keyHash) as { id: string; workspace_id: string } | undefined;
+      .get(keyHash) as { id: string; user_id: string } | undefined;
     if (!row) return null;
     this.db
       .prepare("UPDATE api_keys SET last_used_at = ? WHERE id = ?")
       .run(new Date().toISOString(), row.id);
-    return { workspaceId: row.workspace_id, keyId: row.id };
+    return { userId: row.user_id, keyId: row.id };
   }
 
   // ═══ Lifecycle ═══
@@ -736,7 +693,7 @@ interface LogRow {
 
 interface ApiKeyRow {
   id: string;
-  workspace_id: string;
+  user_id: string;
   name: string;
   key_prefix: string;
   created_at: string;
@@ -764,19 +721,10 @@ function rowToLog(r: LogRow): InvocationLog {
   };
 }
 
-function rowToWorkspace(r: { id: string; clerk_org_id: string; name: string; created_at: string }): Workspace {
-  return {
-    id: r.id,
-    clerkOrgId: r.clerk_org_id,
-    name: r.name,
-    createdAt: r.created_at,
-  };
-}
-
 function rowToApiKey(r: ApiKeyRow): ApiKeyRecord {
   return {
     id: r.id,
-    workspaceId: r.workspace_id,
+    userId: r.user_id,
     name: r.name,
     keyPrefix: r.key_prefix,
     createdAt: r.created_at,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireWorkspaceContext, WorkspaceRequiredError } from "@/lib/workspace";
+import { requireUserContext, AuthRequiredError } from "@/lib/user";
 import { validateManifest } from "@agent-runner/manifest";
 
 export async function GET(
@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const { runner } = await requireWorkspaceContext();
+    const { runner } = await requireUserContext();
     const agent = await runner.agents.getAgent(id);
 
     if (!agent) {
@@ -27,7 +27,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const { runner } = await requireWorkspaceContext();
+    const { runner } = await requireUserContext();
     const body = await req.json();
     const { name, manifest, ...rest } = body;
 
@@ -64,7 +64,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const { runner } = await requireWorkspaceContext();
+    const { runner } = await requireUserContext();
     await runner.agents.deleteAgent(id);
     return NextResponse.json({ id, deleted: true });
   } catch (error) {
@@ -73,7 +73,7 @@ export async function DELETE(
 }
 
 function errorResponse(error: unknown) {
-  if (error instanceof WorkspaceRequiredError) {
+  if (error instanceof AuthRequiredError) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
   return NextResponse.json({ error: String(error) }, { status: 500 });

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { workerRunStream } from "@/lib/worker-client";
-import { requireWorkspaceContext, WorkspaceRequiredError } from "@/lib/workspace";
+import { requireUserContext, AuthRequiredError } from "@/lib/user";
 
 export async function POST(req: NextRequest) {
   try {
-    const { workspace } = await requireWorkspaceContext();
+    const { userId } = await requireUserContext();
     const body = await req.json();
     const { agentId, input, sessionId } = body;
 
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required field: agentId" }, { status: 400 });
     }
 
-    const stream = await workerRunStream({ workspaceId: workspace.id, agentId, input, sessionId });
+    const stream = await workerRunStream({ userId, agentId, input, sessionId });
 
     return new Response(stream, {
       headers: {
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    if (error instanceof WorkspaceRequiredError) {
+    if (error instanceof AuthRequiredError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
     return NextResponse.json({ error: String(error) }, { status: 500 });

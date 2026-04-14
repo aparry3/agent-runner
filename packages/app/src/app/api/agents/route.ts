@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireWorkspaceContext, WorkspaceRequiredError } from "@/lib/workspace";
+import { requireUserContext, AuthRequiredError } from "@/lib/user";
 import { validateManifest } from "@agent-runner/manifest";
 
 export async function GET() {
   try {
-    const { runner } = await requireWorkspaceContext();
+    const { runner } = await requireUserContext();
     const agents = await runner.agents.listAgents();
     return NextResponse.json(agents);
   } catch (error) {
@@ -14,7 +14,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { runner } = await requireWorkspaceContext();
+    const { runner } = await requireUserContext();
     const body = await req.json();
     const { id, name, manifest, ...rest } = body;
 
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 }
 
 function errorResponse(error: unknown) {
-  if (error instanceof WorkspaceRequiredError) {
+  if (error instanceof AuthRequiredError) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
   return NextResponse.json({ error: String(error) }, { status: 500 });

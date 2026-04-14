@@ -1,6 +1,6 @@
 # @agent-runner/worker
 
-Hono HTTP worker that executes YAML-defined agents via the manifest engine. Workspace-aware (multi-tenant) — every request resolves to a `workspace_id` before hitting the store.
+Hono HTTP worker that executes YAML-defined agents via the manifest engine. User-scoped — every request resolves to a `user_id` before hitting the store.
 
 ## Endpoints
 
@@ -14,11 +14,13 @@ Hono HTTP worker that executes YAML-defined agents via the manifest engine. Work
 
 ```json
 {
-  "workspaceId": "uuid",   // only required when using X-Internal-Secret auth
-  "agentId": "agent-builder",
+  "userId": "user_abc...",   // only required when using X-Internal-Secret auth
+  "agentId": "my-agent",
   "input": { "description": "..." }
 }
 ```
+
+Use `agentId: "system:<name>"` (e.g. `system:agent-builder`) to invoke a system agent bundled with the worker. System agents bypass the user store and run with ephemeral state.
 
 ## Authentication
 
@@ -30,7 +32,7 @@ Two modes are accepted by the `workerAuth` middleware in `src/middleware/auth.ts
 X-Internal-Secret: $WORKER_INTERNAL_SECRET
 ```
 
-The worker trusts the header and reads `workspaceId` from the request body. This is what `@agent-runner/app` uses when proxying a signed-in user's request.
+The worker trusts the header and reads `userId` from the request body. This is what `@agent-runner/app` uses when proxying a signed-in user's request.
 
 ### External (service → worker)
 
@@ -38,7 +40,7 @@ The worker trusts the header and reads `workspaceId` from the request body. This
 Authorization: Bearer ar_live_<token>
 ```
 
-Keys are created in the app's **Settings → API Keys** UI (they're sha256-hashed in `ar_api_keys`). The worker calls `store.resolveApiKey(rawKey)` to map the token to its workspace.
+Keys are created in the app's **Settings → API Keys** UI (they're sha256-hashed in `ar_api_keys`). The worker calls `store.resolveApiKey(rawKey)` to map the token to its user.
 
 Any request without one of these is rejected with 401.
 
@@ -55,9 +57,9 @@ DEFAULT_MODEL_NAME=gpt-4o
 BUILT_IN_AGENTS_DIR=...           # optional: extra YAMLs to seed per workspace
 ```
 
-## Built-in agent seeding
+## System agents
 
-Default agents shipped in `src/defaults/agents/` (currently `agent-builder.yaml`) are seeded into every workspace lazily on its first `/run` request, via `seedDefaultsForWorkspace()`. Idempotent: tracks seeded workspaces in-process and double-checks the store before inserting.
+Default agents shipped in `src/defaults/agents/` (currently `agent-builder.yaml`) are available as **system agents** — invoke with `agentId: "system:<name>"`. The worker loads the YAML from disk and runs it with an ephemeral `MemoryStore`, bypassing the caller's user-scoped store entirely. To change the behavior, edit the YAML and redeploy.
 
 ## Run locally
 

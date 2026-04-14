@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireWorkspaceContext, WorkspaceRequiredError } from "@/lib/workspace";
+import { requireUserContext, AuthRequiredError } from "@/lib/user";
 import { activateVersion, getVersion } from "@/lib/versions";
 
 export async function POST(
@@ -9,7 +9,7 @@ export async function POST(
   try {
     const { id, timestamp } = await params;
     const decodedTimestamp = decodeURIComponent(timestamp);
-    const { store } = await requireWorkspaceContext();
+    const { store } = await requireUserContext();
 
     const agent = await getVersion(store, id, decodedTimestamp);
     if (!agent) {
@@ -22,7 +22,7 @@ export async function POST(
     await activateVersion(store, id, decodedTimestamp);
     return NextResponse.json({ activated: true, agentId: id, timestamp: decodedTimestamp });
   } catch (error) {
-    if (error instanceof WorkspaceRequiredError) {
+    if (error instanceof AuthRequiredError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
     return NextResponse.json({ error: String(error) }, { status: 500 });

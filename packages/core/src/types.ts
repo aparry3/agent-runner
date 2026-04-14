@@ -407,19 +407,12 @@ export interface ProviderStore {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Multi-tenancy: Workspaces and API keys
+// Multi-tenancy: per-user scoping + API keys
 // ═══════════════════════════════════════════════════════════════════════
-
-export interface Workspace {
-  id: string;
-  clerkOrgId: string;
-  name: string;
-  createdAt: string;
-}
 
 export interface ApiKeyRecord {
   id: string;
-  workspaceId: string;
+  userId: string;
   name: string;
   keyPrefix: string;
   createdAt: string;
@@ -428,38 +421,28 @@ export interface ApiKeyRecord {
 }
 
 /**
- * Workspace CRUD. These methods are NOT workspace-scoped — they manage
- * workspaces themselves. Available on both scoped and unscoped store instances.
- */
-export interface WorkspaceStore {
-  getWorkspaceByClerkOrgId(clerkOrgId: string): Promise<Workspace | null>;
-  getWorkspaceById(id: string): Promise<Workspace | null>;
-  createWorkspace(params: { clerkOrgId: string; name: string }): Promise<Workspace>;
-}
-
-/**
  * API key management. `createApiKey`/`listApiKeys`/`revokeApiKey` require an
- * explicit workspaceId (they're admin-style calls, not scoped reads).
+ * explicit userId (they're admin-style calls, not scoped reads).
  * `resolveApiKey` is the worker's inbound auth path — given a raw key, return
- * the workspace it belongs to.
+ * the user it belongs to.
  */
 export interface ApiKeyStore {
-  createApiKey(params: { workspaceId: string; name: string }): Promise<{ record: ApiKeyRecord; rawKey: string }>;
-  listApiKeys(workspaceId: string): Promise<ApiKeyRecord[]>;
-  revokeApiKey(params: { workspaceId: string; keyId: string }): Promise<void>;
-  resolveApiKey(rawKey: string): Promise<{ workspaceId: string; keyId: string } | null>;
+  createApiKey(params: { userId: string; name: string }): Promise<{ record: ApiKeyRecord; rawKey: string }>;
+  listApiKeys(userId: string): Promise<ApiKeyRecord[]>;
+  revokeApiKey(params: { userId: string; keyId: string }): Promise<void>;
+  resolveApiKey(rawKey: string): Promise<{ userId: string; keyId: string } | null>;
 }
 
 /**
- * Stores that can be scoped to a workspace. `forWorkspace(id)` returns a new
- * store instance where every AgentStore/SessionStore/ContextStore/LogStore/
- * ProviderStore method auto-filters by workspace_id.
+ * Stores that can be scoped to a user. `forUser(userId)` returns a new store
+ * instance where every AgentStore/SessionStore/ContextStore/LogStore/
+ * ProviderStore method auto-filters by user_id.
  *
  * Calling scoped methods on an unscoped store throws.
  */
 export interface ScopableStore {
-  forWorkspace(workspaceId: string): UnifiedStore;
-  readonly workspaceId: string | null;
+  forUser(userId: string): UnifiedStore;
+  readonly userId: string | null;
 }
 
 export type UnifiedStore = AgentStore &
@@ -467,7 +450,6 @@ export type UnifiedStore = AgentStore &
   ContextStore &
   LogStore &
   ProviderStore &
-  WorkspaceStore &
   ApiKeyStore &
   ScopableStore;
 

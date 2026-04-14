@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
-import { createRunner, type UnifiedStore } from "@agent-runner/core";
+import { createRunner, MemoryStore, type Runner, type UnifiedStore } from "@agent-runner/core";
 import { execute, parseManifest } from "@agent-runner/manifest";
 import type { AgentManifest } from "@agent-runner/manifest";
 import { createExecutionContext } from "./bridge.js";
-import { workerAuth, getWorkspaceId, getCachedBody } from "./middleware/auth.js";
-import { seedDefaultsForWorkspace } from "./seed.js";
+import { workerAuth, getUserId, getCachedBody } from "./middleware/auth.js";
+import { isSystemAgentId, loadSystemAgent } from "./system-agents.js";
 import { readFileTool } from "./tools/read-file.js";
 import { validateManifestTool } from "./tools/validate-manifest.js";
 
@@ -16,29 +16,28 @@ export interface WorkerAPIOptions {
 }
 
 /**
- * Create the worker API. Auth middleware resolves a per-request workspaceId,
- * then handlers build a workspace-scoped Runner and execute the agent.
+ * Create the worker API. Auth middleware resolves a per-request userId,
+ * then handlers build a user-scoped Runner and execute the agent.
+ *
+ * System agents (agentId = "system:<name>") are loaded from YAML in the repo
+ * and executed via an ephemeral in-memory runner. They don't touch the user's
+ * store — they're application-level features that ship with the code.
  */
 export function createWorkerAPI({ store, internalSecret }: WorkerAPIOptions): Hono {
   const app = new Hono();
 
   app.use("*", cors());
 
-  // ─── Health (public) ──────────────────────────────────────────────
-
   app.get("/health", (c) => {
     return c.json({ status: "ok", service: "agent-runner-worker" });
   });
 
-  // Auth gate for everything else.
   app.use("/run", workerAuth({ store, internalSecret }));
   app.use("/run/stream", workerAuth({ store, internalSecret }));
 
-  // ─── Run (request-response) ───────────────────────────────────────
-
   app.post("/run", async (c) => {
     try {
-      const workspaceId = getWorkspaceId(c);
+      const userId = getUserId(c);
       const body = (getCachedBody(c) ?? (await c.req.json())) as {
         agentId?: string;
         input?: unknown;
@@ -50,26 +49,20 @@ export function createWorkerAPI({ store, internalSecret }: WorkerAPIOptions): Ho
         return c.json({ error: "Missing required field: agentId" }, 400);
       }
 
-      const runner = await getRunnerForWorkspace(store, workspaceId);
-      const manifest = await resolveManifest(agentId, runner);
+      const { runner, manifest } = await resolveRunnerAndManifest(store, userId, agentId);
       const ctx = createExecutionContext(runner);
       const result = await execute(manifest, input ?? "", ctx);
 
-      return c.json({
-        output: result.output,
-        state: result.state,
-      });
+      return c.json({ output: result.output, state: result.state });
     } catch (error) {
       const status = isNotFound(error) ? 404 : 500;
       return c.json({ error: errorMessage(error) }, status);
     }
   });
 
-  // ─── Run with streaming (SSE) ─────────────────────────────────────
-
   app.post("/run/stream", async (c) => {
     try {
-      const workspaceId = getWorkspaceId(c);
+      const userId = getUserId(c);
       const body = (getCachedBody(c) ?? (await c.req.json())) as {
         agentId?: string;
         input?: unknown;
@@ -81,8 +74,7 @@ export function createWorkerAPI({ store, internalSecret }: WorkerAPIOptions): Ho
         return c.json({ error: "Missing required field: agentId" }, 400);
       }
 
-      const runner = await getRunnerForWorkspace(store, workspaceId);
-      const manifest = await resolveManifest(agentId, runner);
+      const { runner, manifest } = await resolveRunnerAndManifest(store, userId, agentId);
       const ctx = createExecutionContext(runner);
 
       return streamSSE(c, async (stream) => {
@@ -96,10 +88,7 @@ export function createWorkerAPI({ store, internalSecret }: WorkerAPIOptions): Ho
 
           await stream.writeSSE({
             event: "run-complete",
-            data: JSON.stringify({
-              output: result.output,
-              state: result.state,
-            }),
+            data: JSON.stringify({ output: result.output, state: result.state }),
           });
         } catch (error) {
           await stream.writeSSE({
@@ -116,23 +105,35 @@ export function createWorkerAPI({ store, internalSecret }: WorkerAPIOptions): Ho
   return app;
 }
 
-async function getRunnerForWorkspace(store: UnifiedStore, workspaceId: string) {
-  const scoped = store.forWorkspace(workspaceId);
-  const runner = createRunner({
-    store: scoped,
-    tools: [readFileTool, validateManifestTool],
-    defaults: {
-      model: {
-        provider: process.env.DEFAULT_MODEL_PROVIDER ?? "openai",
-        name: process.env.DEFAULT_MODEL_NAME ?? "gpt-4o",
-      },
+async function resolveRunnerAndManifest(
+  store: UnifiedStore,
+  userId: string,
+  agentId: string,
+): Promise<{ runner: Runner; manifest: AgentManifest }> {
+  const tools = [readFileTool, validateManifestTool];
+  const defaults = {
+    model: {
+      provider: process.env.DEFAULT_MODEL_PROVIDER ?? "openai",
+      name: process.env.DEFAULT_MODEL_NAME ?? "gpt-4o",
     },
-  });
-  await seedDefaultsForWorkspace(runner, workspaceId);
-  return runner;
+  };
+
+  if (isSystemAgentId(agentId)) {
+    const manifest = await loadSystemAgent(agentId);
+    // System agents run with an ephemeral store — they don't need persistence
+    // and shouldn't see or write the calling user's agents/sessions.
+    const ephemeralStore = new MemoryStore();
+    const runner = createRunner({ store: ephemeralStore, tools, defaults });
+    return { runner, manifest };
+  }
+
+  const scoped = store.forUser(userId);
+  const runner = createRunner({ store: scoped, tools, defaults });
+  const manifest = await resolveStoredManifest(agentId, runner);
+  return { runner, manifest };
 }
 
-async function resolveManifest(agentId: string, runner: ReturnType<typeof createRunner>): Promise<AgentManifest> {
+async function resolveStoredManifest(agentId: string, runner: Runner): Promise<AgentManifest> {
   const agentDef = await runner.agents.getAgent(agentId);
   if (!agentDef) {
     throw Object.assign(new Error(`Agent "${agentId}" not found`), { code: "NOT_FOUND" });

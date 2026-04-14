@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireWorkspaceContext, WorkspaceRequiredError } from "@/lib/workspace";
+import { requireUserContext, AuthRequiredError } from "@/lib/user";
 import { getStore } from "@/lib/store";
 
 export async function GET() {
   try {
-    const { workspace } = await requireWorkspaceContext();
+    const { userId } = await requireUserContext();
     const adminStore = await getStore();
-    const keys = await adminStore.listApiKeys(workspace.id);
+    const keys = await adminStore.listApiKeys(userId);
     return NextResponse.json(keys);
   } catch (error) {
     return errorResponse(error);
@@ -15,7 +15,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { workspace } = await requireWorkspaceContext();
+    const { userId } = await requireUserContext();
     const body = await req.json();
     const name = String(body.name ?? "").trim();
     if (!name) {
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     }
     const adminStore = await getStore();
     const { record, rawKey } = await adminStore.createApiKey({
-      workspaceId: workspace.id,
+      userId,
       name,
     });
     // rawKey is returned ONCE; UI must show + copy then forget.
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 }
 
 function errorResponse(error: unknown) {
-  if (error instanceof WorkspaceRequiredError) {
+  if (error instanceof AuthRequiredError) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
   return NextResponse.json({ error: String(error) }, { status: 500 });

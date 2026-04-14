@@ -11,7 +11,7 @@ function internalSecret(): string {
 }
 
 export interface RunRequest {
-  workspaceId: string;
+  userId: string;
   agentId: string;
   input: unknown;
   sessionId?: string;

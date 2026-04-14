@@ -4,7 +4,6 @@ import type {
   AgentDefinition,
   ProviderConfig,
   UnifiedStore,
-  Workspace,
   ApiKeyRecord,
   Message,
   SessionSummary,
@@ -97,7 +96,7 @@ const MIGRATIONS: string[] = [
   );
   UPDATE ar_schema_version SET version = 2;
   `,
-  // v3: Agent versioning
+  // v3: Agent versioning — composite PK (agent_id, created_at)
   `
   CREATE TABLE IF NOT EXISTS ar_agents_new (
     agent_id TEXT NOT NULL,
@@ -121,22 +120,17 @@ const MIGRATIONS: string[] = [
 
   UPDATE ar_schema_version SET version = 3;
   `,
-  // v4: Multi-tenancy. Add workspaces, api keys, and workspace_id on every
-  // workspace-scoped table. Existing rows are wiped (dev data only) — we
-  // can't guess which workspace they belong to.
+  // v4: Per-user scoping + API keys. Workspaces are not a first-class concept;
+  // every scoped row carries a user_id (Clerk user id as TEXT). Dev data is
+  // wiped — we can't guess ownership.
   `
-  CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
-  CREATE TABLE IF NOT EXISTS ar_workspaces (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    clerk_org_id TEXT NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
+  -- Previous in-dev attempts may have left ar_workspaces behind. Drop with
+  -- CASCADE to clear any lingering FKs.
+  DROP TABLE IF EXISTS ar_workspaces CASCADE;
 
   CREATE TABLE IF NOT EXISTS ar_api_keys (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    workspace_id UUID NOT NULL REFERENCES ar_workspaces(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY,
+    user_id TEXT NOT NULL,
     name TEXT NOT NULL,
     key_prefix TEXT NOT NULL,
     key_hash TEXT NOT NULL,
@@ -146,26 +140,26 @@ const MIGRATIONS: string[] = [
   );
   CREATE UNIQUE INDEX IF NOT EXISTS idx_ar_api_keys_hash_active
     ON ar_api_keys(key_hash) WHERE revoked_at IS NULL;
-  CREATE INDEX IF NOT EXISTS idx_ar_api_keys_workspace ON ar_api_keys(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_ar_api_keys_user ON ar_api_keys(user_id);
 
-  -- Wipe dev data so we can add NOT NULL workspace_id without backfill.
+  -- Wipe pre-scoping rows so we can add NOT NULL user_id without backfill.
   TRUNCATE ar_messages, ar_sessions, ar_context_entries, ar_invocation_logs,
            ar_agents, ar_providers RESTART IDENTITY CASCADE;
 
-  ALTER TABLE ar_agents ADD COLUMN workspace_id UUID NOT NULL REFERENCES ar_workspaces(id) ON DELETE CASCADE;
-  ALTER TABLE ar_sessions ADD COLUMN workspace_id UUID NOT NULL REFERENCES ar_workspaces(id) ON DELETE CASCADE;
-  ALTER TABLE ar_context_entries ADD COLUMN workspace_id UUID NOT NULL REFERENCES ar_workspaces(id) ON DELETE CASCADE;
-  ALTER TABLE ar_invocation_logs ADD COLUMN workspace_id UUID NOT NULL REFERENCES ar_workspaces(id) ON DELETE CASCADE;
-  ALTER TABLE ar_providers ADD COLUMN workspace_id UUID NOT NULL REFERENCES ar_workspaces(id) ON DELETE CASCADE;
+  ALTER TABLE ar_agents ADD COLUMN user_id TEXT NOT NULL;
+  ALTER TABLE ar_sessions ADD COLUMN user_id TEXT NOT NULL;
+  ALTER TABLE ar_context_entries ADD COLUMN user_id TEXT NOT NULL;
+  ALTER TABLE ar_invocation_logs ADD COLUMN user_id TEXT NOT NULL;
+  ALTER TABLE ar_providers ADD COLUMN user_id TEXT NOT NULL;
 
-  -- Providers were keyed by id alone; now they're per-workspace.
+  -- Providers: swap single-column PK for composite on (user_id, id).
   ALTER TABLE ar_providers DROP CONSTRAINT IF EXISTS ar_providers_pkey;
-  ALTER TABLE ar_providers ADD PRIMARY KEY (workspace_id, id);
+  ALTER TABLE ar_providers ADD PRIMARY KEY (user_id, id);
 
-  CREATE INDEX IF NOT EXISTS idx_ar_agents_workspace ON ar_agents(workspace_id);
-  CREATE INDEX IF NOT EXISTS idx_ar_sessions_workspace ON ar_sessions(workspace_id);
-  CREATE INDEX IF NOT EXISTS idx_ar_context_entries_workspace ON ar_context_entries(workspace_id);
-  CREATE INDEX IF NOT EXISTS idx_ar_invocation_logs_workspace ON ar_invocation_logs(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_ar_agents_user ON ar_agents(user_id);
+  CREATE INDEX IF NOT EXISTS idx_ar_sessions_user ON ar_sessions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_ar_context_entries_user ON ar_context_entries(user_id);
+  CREATE INDEX IF NOT EXISTS idx_ar_invocation_logs_user ON ar_invocation_logs(user_id);
 
   UPDATE ar_schema_version SET version = 4;
   `,
@@ -175,7 +169,7 @@ export interface PostgresStoreOptions {
   connection: string | PoolType | PoolConfig;
   tablePrefix?: string;
   skipMigration?: boolean;
-  workspaceId?: string;
+  userId?: string;
 }
 
 export class PostgresStore implements UnifiedStore {
@@ -185,7 +179,7 @@ export class PostgresStore implements UnifiedStore {
   private migrated: boolean = false;
   private migratePromise: Promise<void> | null = null;
   private lastTs = 0;
-  readonly workspaceId: string | null;
+  readonly userId: string | null;
 
   private nextTimestamp(): string {
     const now = Date.now();
@@ -199,7 +193,7 @@ export class PostgresStore implements UnifiedStore {
       typeof options === "string" ? { connection: options } : options;
 
     this.prefix = opts.tablePrefix ?? "ar_";
-    this.workspaceId = opts.workspaceId ?? null;
+    this.userId = opts.userId ?? null;
 
     if (typeof opts.connection === "string") {
       this.pool = new Pool({ connectionString: opts.connection });
@@ -217,26 +211,22 @@ export class PostgresStore implements UnifiedStore {
     }
   }
 
-  /**
-   * Return a workspace-scoped instance sharing the same pool. The returned
-   * store skips migrations (already done by the unscoped parent).
-   */
-  forWorkspace(workspaceId: string): PostgresStore {
+  forUser(userId: string): PostgresStore {
     const scoped = new PostgresStore({
       connection: this.pool,
       tablePrefix: this.prefix,
       skipMigration: true,
-      workspaceId,
+      userId,
     });
     scoped.migrated = true;
     return scoped;
   }
 
-  private requireWorkspace(): string {
-    if (!this.workspaceId) {
-      throw new Error("PostgresStore: workspace not set. Call forWorkspace(id) first.");
+  private requireUser(): string {
+    if (!this.userId) {
+      throw new Error("PostgresStore: user not set. Call forUser(id) first.");
     }
-    return this.workspaceId;
+    return this.userId;
   }
 
   private t(name: string): string {
@@ -277,13 +267,13 @@ export class PostgresStore implements UnifiedStore {
 
   async getAgent(id: string): Promise<AgentDefinition | null> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const result = await this.pool.query(
       `SELECT definition FROM ${this.t("agents")}
-       WHERE workspace_id = $1 AND agent_id = $2
+       WHERE user_id = $1 AND agent_id = $2
        ORDER BY activated_at DESC NULLS LAST, created_at DESC
        LIMIT 1`,
-      [ws, id]
+      [u, id]
     );
     if (result.rows.length === 0) return null;
     const def = result.rows[0].definition;
@@ -292,13 +282,13 @@ export class PostgresStore implements UnifiedStore {
 
   async listAgents(): Promise<Array<{ id: string; name: string; description?: string }>> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const result = await this.pool.query(
       `SELECT DISTINCT ON (agent_id) agent_id, name, description
        FROM ${this.t("agents")}
-       WHERE workspace_id = $1
+       WHERE user_id = $1
        ORDER BY agent_id, activated_at DESC NULLS LAST, created_at DESC`,
-      [ws]
+      [u]
     );
     return result.rows
       .map((r: { agent_id: string; name: string; description: string | null }) => ({
@@ -311,34 +301,34 @@ export class PostgresStore implements UnifiedStore {
 
   async putAgent(agent: AgentDefinition): Promise<void> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const now = this.nextTimestamp();
     const agentWithTimestamp = { ...agent, createdAt: now, updatedAt: now };
 
     await this.pool.query(
-      `INSERT INTO ${this.t("agents")} (workspace_id, agent_id, name, description, definition, created_at, activated_at)
+      `INSERT INTO ${this.t("agents")} (user_id, agent_id, name, description, definition, created_at, activated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [ws, agent.id, agent.name, agent.description ?? null, JSON.stringify(agentWithTimestamp), now, now]
+      [u, agent.id, agent.name, agent.description ?? null, JSON.stringify(agentWithTimestamp), now, now]
     );
   }
 
   async deleteAgent(id: string): Promise<void> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     await this.pool.query(
-      `DELETE FROM ${this.t("agents")} WHERE workspace_id = $1 AND agent_id = $2`,
-      [ws, id]
+      `DELETE FROM ${this.t("agents")} WHERE user_id = $1 AND agent_id = $2`,
+      [u, id]
     );
   }
 
   async listAgentVersions(agentId: string): Promise<Array<{ createdAt: string; activatedAt: string | null }>> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const result = await this.pool.query(
       `SELECT created_at, activated_at FROM ${this.t("agents")}
-       WHERE workspace_id = $1 AND agent_id = $2
+       WHERE user_id = $1 AND agent_id = $2
        ORDER BY created_at DESC`,
-      [ws, agentId]
+      [u, agentId]
     );
     return result.rows.map((r: { created_at: Date | string; activated_at: Date | string | null }) => ({
       createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
@@ -350,11 +340,11 @@ export class PostgresStore implements UnifiedStore {
 
   async getAgentVersion(agentId: string, createdAt: string): Promise<AgentDefinition | null> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const result = await this.pool.query(
       `SELECT definition FROM ${this.t("agents")}
-       WHERE workspace_id = $1 AND agent_id = $2 AND created_at = $3`,
-      [ws, agentId, createdAt]
+       WHERE user_id = $1 AND agent_id = $2 AND created_at = $3`,
+      [u, agentId, createdAt]
     );
     if (result.rows.length === 0) return null;
     const def = result.rows[0].definition;
@@ -363,12 +353,12 @@ export class PostgresStore implements UnifiedStore {
 
   async activateAgentVersion(agentId: string, createdAt: string): Promise<void> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const now = this.nextTimestamp();
     await this.pool.query(
       `UPDATE ${this.t("agents")} SET activated_at = $1
-       WHERE workspace_id = $2 AND agent_id = $3 AND created_at = $4`,
-      [now, ws, agentId, createdAt]
+       WHERE user_id = $2 AND agent_id = $3 AND created_at = $4`,
+      [now, u, agentId, createdAt]
     );
   }
 
@@ -376,14 +366,14 @@ export class PostgresStore implements UnifiedStore {
 
   async getMessages(sessionId: string): Promise<Message[]> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const result = await this.pool.query(
       `SELECT m.role, m.content, m.tool_calls, m.tool_call_id, m.timestamp
        FROM ${this.t("messages")} m
        INNER JOIN ${this.t("sessions")} s ON s.id = m.session_id
-       WHERE s.workspace_id = $1 AND m.session_id = $2
+       WHERE s.user_id = $1 AND m.session_id = $2
        ORDER BY m.id`,
-      [ws, sessionId]
+      [u, sessionId]
     );
 
     return result.rows.map((r: {
@@ -406,26 +396,25 @@ export class PostgresStore implements UnifiedStore {
 
   async append(sessionId: string, messages: Message[]): Promise<void> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
 
-      // Verify session belongs to this workspace if it already exists
       const existing = await client.query(
-        `SELECT workspace_id FROM ${this.t("sessions")} WHERE id = $1`,
+        `SELECT user_id FROM ${this.t("sessions")} WHERE id = $1`,
         [sessionId]
       );
-      if (existing.rows.length > 0 && existing.rows[0].workspace_id !== ws) {
-        throw new Error(`Session ${sessionId} belongs to a different workspace`);
+      if (existing.rows.length > 0 && existing.rows[0].user_id !== u) {
+        throw new Error(`Session ${sessionId} belongs to a different user`);
       }
 
       const now = new Date().toISOString();
       await client.query(
-        `INSERT INTO ${this.t("sessions")} (workspace_id, id, created_at, updated_at)
+        `INSERT INTO ${this.t("sessions")} (user_id, id, created_at, updated_at)
          VALUES ($1, $2, $3, $3)
          ON CONFLICT(id) DO UPDATE SET updated_at = EXCLUDED.updated_at`,
-        [ws, sessionId, now]
+        [u, sessionId, now]
       );
 
       for (const msg of messages) {
@@ -454,24 +443,24 @@ export class PostgresStore implements UnifiedStore {
 
   async deleteSession(sessionId: string): Promise<void> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     await this.pool.query(
-      `DELETE FROM ${this.t("sessions")} WHERE workspace_id = $1 AND id = $2`,
-      [ws, sessionId]
+      `DELETE FROM ${this.t("sessions")} WHERE user_id = $1 AND id = $2`,
+      [u, sessionId]
     );
   }
 
   async listSessions(agentId?: string): Promise<SessionSummary[]> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     let query = `
       SELECT s.id, s.agent_id, s.created_at, s.updated_at,
              COUNT(m.id) as message_count
       FROM ${this.t("sessions")} s
       LEFT JOIN ${this.t("messages")} m ON m.session_id = s.id
-      WHERE s.workspace_id = $1
+      WHERE s.user_id = $1
     `;
-    const params: string[] = [ws];
+    const params: string[] = [u];
 
     if (agentId) {
       query += ` AND s.agent_id = $${params.length + 1}`;
@@ -501,13 +490,13 @@ export class PostgresStore implements UnifiedStore {
 
   async getContext(contextId: string): Promise<ContextEntry[]> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const result = await this.pool.query(
       `SELECT context_id, agent_id, invocation_id, content, created_at
        FROM ${this.t("context_entries")}
-       WHERE workspace_id = $1 AND context_id = $2
+       WHERE user_id = $1 AND context_id = $2
        ORDER BY id`,
-      [ws, contextId]
+      [u, contextId]
     );
 
     return result.rows.map((r: {
@@ -527,20 +516,20 @@ export class PostgresStore implements UnifiedStore {
 
   async addContext(contextId: string, entry: ContextEntry): Promise<void> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     await this.pool.query(
-      `INSERT INTO ${this.t("context_entries")} (workspace_id, context_id, agent_id, invocation_id, content, created_at)
+      `INSERT INTO ${this.t("context_entries")} (user_id, context_id, agent_id, invocation_id, content, created_at)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [ws, contextId, entry.agentId, entry.invocationId, entry.content, entry.createdAt]
+      [u, contextId, entry.agentId, entry.invocationId, entry.content, entry.createdAt]
     );
   }
 
   async clearContext(contextId: string): Promise<void> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     await this.pool.query(
-      `DELETE FROM ${this.t("context_entries")} WHERE workspace_id = $1 AND context_id = $2`,
-      [ws, contextId]
+      `DELETE FROM ${this.t("context_entries")} WHERE user_id = $1 AND context_id = $2`,
+      [u, contextId]
     );
   }
 
@@ -548,14 +537,14 @@ export class PostgresStore implements UnifiedStore {
 
   async log(entry: InvocationLog): Promise<void> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     await this.pool.query(
       `INSERT INTO ${this.t("invocation_logs")}
-       (workspace_id, id, agent_id, session_id, input, output, tool_calls,
+       (user_id, id, agent_id, session_id, input, output, tool_calls,
         prompt_tokens, completion_tokens, total_tokens, duration, model, error, timestamp)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
       [
-        ws,
+        u,
         entry.id,
         entry.agentId,
         entry.sessionId ?? null,
@@ -575,9 +564,9 @@ export class PostgresStore implements UnifiedStore {
 
   async getLogs(filter?: LogFilter): Promise<InvocationLog[]> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
-    let query = `SELECT * FROM ${this.t("invocation_logs")} WHERE workspace_id = $1`;
-    const params: unknown[] = [ws];
+    const u = this.requireUser();
+    let query = `SELECT * FROM ${this.t("invocation_logs")} WHERE user_id = $1`;
+    const params: unknown[] = [u];
     let paramIdx = 2;
 
     if (filter?.agentId) {
@@ -610,10 +599,10 @@ export class PostgresStore implements UnifiedStore {
 
   async getLog(id: string): Promise<InvocationLog | null> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const result = await this.pool.query(
-      `SELECT * FROM ${this.t("invocation_logs")} WHERE workspace_id = $1 AND id = $2`,
-      [ws, id]
+      `SELECT * FROM ${this.t("invocation_logs")} WHERE user_id = $1 AND id = $2`,
+      [u, id]
     );
     if (result.rows.length === 0) return null;
     return rowToInvocationLog(result.rows[0]);
@@ -623,11 +612,11 @@ export class PostgresStore implements UnifiedStore {
 
   async getProvider(id: string): Promise<ProviderConfig | null> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const { rows } = await this.pool.query(
       `SELECT id, api_key, base_url, config, updated_at FROM ${this.prefix}providers
-       WHERE workspace_id = $1 AND id = $2`,
-      [ws, id]
+       WHERE user_id = $1 AND id = $2`,
+      [u, id]
     );
     if (rows.length === 0) return null;
     const r = rows[0];
@@ -642,10 +631,10 @@ export class PostgresStore implements UnifiedStore {
 
   async listProviders(): Promise<Array<{ id: string; configured: boolean }>> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     const { rows } = await this.pool.query(
-      `SELECT id, api_key FROM ${this.prefix}providers WHERE workspace_id = $1 ORDER BY id`,
-      [ws]
+      `SELECT id, api_key FROM ${this.prefix}providers WHERE user_id = $1 ORDER BY id`,
+      [u]
     );
     return rows.map((r: { id: string; api_key: string }) => ({
       id: r.id,
@@ -655,111 +644,77 @@ export class PostgresStore implements UnifiedStore {
 
   async putProvider(provider: ProviderConfig): Promise<void> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     await this.pool.query(
-      `INSERT INTO ${this.prefix}providers (workspace_id, id, api_key, base_url, config, updated_at)
+      `INSERT INTO ${this.prefix}providers (user_id, id, api_key, base_url, config, updated_at)
        VALUES ($1, $2, $3, $4, $5, NOW())
-       ON CONFLICT (workspace_id, id) DO UPDATE SET
+       ON CONFLICT (user_id, id) DO UPDATE SET
          api_key = EXCLUDED.api_key,
          base_url = EXCLUDED.base_url,
          config = EXCLUDED.config,
          updated_at = NOW()`,
-      [ws, provider.id, provider.apiKey, provider.baseUrl ?? null, provider.config ? JSON.stringify(provider.config) : null]
+      [u, provider.id, provider.apiKey, provider.baseUrl ?? null, provider.config ? JSON.stringify(provider.config) : null]
     );
   }
 
   async deleteProvider(id: string): Promise<void> {
     await this.ensureMigrated();
-    const ws = this.requireWorkspace();
+    const u = this.requireUser();
     await this.pool.query(
-      `DELETE FROM ${this.prefix}providers WHERE workspace_id = $1 AND id = $2`,
-      [ws, id]
+      `DELETE FROM ${this.prefix}providers WHERE user_id = $1 AND id = $2`,
+      [u, id]
     );
-  }
-
-  // ═══ WorkspaceStore (unscoped admin) ═══
-
-  async getWorkspaceByClerkOrgId(clerkOrgId: string): Promise<Workspace | null> {
-    await this.ensureMigrated();
-    const { rows } = await this.pool.query(
-      `SELECT id, clerk_org_id, name, created_at FROM ${this.t("workspaces")} WHERE clerk_org_id = $1`,
-      [clerkOrgId]
-    );
-    if (rows.length === 0) return null;
-    return rowToWorkspace(rows[0]);
-  }
-
-  async getWorkspaceById(id: string): Promise<Workspace | null> {
-    await this.ensureMigrated();
-    const { rows } = await this.pool.query(
-      `SELECT id, clerk_org_id, name, created_at FROM ${this.t("workspaces")} WHERE id = $1`,
-      [id]
-    );
-    if (rows.length === 0) return null;
-    return rowToWorkspace(rows[0]);
-  }
-
-  async createWorkspace(params: { clerkOrgId: string; name: string }): Promise<Workspace> {
-    await this.ensureMigrated();
-    const { rows } = await this.pool.query(
-      `INSERT INTO ${this.t("workspaces")} (clerk_org_id, name)
-       VALUES ($1, $2)
-       ON CONFLICT (clerk_org_id) DO UPDATE SET name = EXCLUDED.name
-       RETURNING id, clerk_org_id, name, created_at`,
-      [params.clerkOrgId, params.name]
-    );
-    return rowToWorkspace(rows[0]);
   }
 
   // ═══ ApiKeyStore (unscoped admin) ═══
 
-  async createApiKey(params: { workspaceId: string; name: string }): Promise<{ record: ApiKeyRecord; rawKey: string }> {
+  async createApiKey(params: { userId: string; name: string }): Promise<{ record: ApiKeyRecord; rawKey: string }> {
     await this.ensureMigrated();
     const rawKey = `ar_live_${randomBytes(24).toString("base64url")}`;
     const keyPrefix = rawKey.slice(0, 14);
     const keyHash = createHash("sha256").update(rawKey).digest("hex");
     const id = randomUUID();
     const { rows } = await this.pool.query(
-      `INSERT INTO ${this.t("api_keys")} (id, workspace_id, name, key_prefix, key_hash)
+      `INSERT INTO ${this.t("api_keys")} (id, user_id, name, key_prefix, key_hash)
        VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, workspace_id, name, key_prefix, created_at, last_used_at, revoked_at`,
-      [id, params.workspaceId, params.name, keyPrefix, keyHash]
+       RETURNING id, user_id, name, key_prefix, created_at, last_used_at, revoked_at`,
+      [id, params.userId, params.name, keyPrefix, keyHash]
     );
     return { record: rowToApiKey(rows[0]), rawKey };
   }
 
-  async listApiKeys(workspaceId: string): Promise<ApiKeyRecord[]> {
+  async listApiKeys(userId: string): Promise<ApiKeyRecord[]> {
     await this.ensureMigrated();
     const { rows } = await this.pool.query(
-      `SELECT id, workspace_id, name, key_prefix, created_at, last_used_at, revoked_at
+      `SELECT id, user_id, name, key_prefix, created_at, last_used_at, revoked_at
        FROM ${this.t("api_keys")}
-       WHERE workspace_id = $1
+       WHERE user_id = $1
        ORDER BY created_at DESC`,
-      [workspaceId]
+      [userId]
     );
     return rows.map(rowToApiKey);
   }
 
-  async revokeApiKey(params: { workspaceId: string; keyId: string }): Promise<void> {
+  async revokeApiKey(params: { userId: string; keyId: string }): Promise<void> {
     await this.ensureMigrated();
     await this.pool.query(
       `UPDATE ${this.t("api_keys")} SET revoked_at = NOW()
-       WHERE id = $1 AND workspace_id = $2 AND revoked_at IS NULL`,
-      [params.keyId, params.workspaceId]
+       WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL`,
+      [params.keyId, params.userId]
     );
   }
 
-  async resolveApiKey(rawKey: string): Promise<{ workspaceId: string; keyId: string } | null> {
+  async resolveApiKey(rawKey: string): Promise<{ userId: string; keyId: string } | null> {
     await this.ensureMigrated();
     const keyHash = createHash("sha256").update(rawKey).digest("hex");
     const { rows } = await this.pool.query(
       `UPDATE ${this.t("api_keys")} SET last_used_at = NOW()
        WHERE key_hash = $1 AND revoked_at IS NULL
-       RETURNING id, workspace_id`,
+       RETURNING id, user_id`,
       [keyHash]
     );
     if (rows.length === 0) return null;
-    return { workspaceId: rows[0].workspace_id, keyId: rows[0].id };
+    return { userId: rows[0].user_id, keyId: rows[0].id };
   }
 
   // ═══ Lifecycle ═══
@@ -809,18 +764,9 @@ function rowToInvocationLog(r: {
   };
 }
 
-function rowToWorkspace(r: { id: string; clerk_org_id: string; name: string; created_at: Date | string }): Workspace {
-  return {
-    id: r.id,
-    clerkOrgId: r.clerk_org_id,
-    name: r.name,
-    createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
-  };
-}
-
 function rowToApiKey(r: {
   id: string;
-  workspace_id: string;
+  user_id: string;
   name: string;
   key_prefix: string;
   created_at: Date | string;
@@ -831,7 +777,7 @@ function rowToApiKey(r: {
     v == null ? null : v instanceof Date ? v.toISOString() : String(v);
   return {
     id: r.id,
-    workspaceId: r.workspace_id,
+    userId: r.user_id,
     name: r.name,
     keyPrefix: r.key_prefix,
     createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),

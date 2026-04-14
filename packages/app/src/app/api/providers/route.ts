@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireWorkspaceContext, WorkspaceRequiredError } from "@/lib/workspace";
+import { requireUserContext, AuthRequiredError } from "@/lib/user";
 
 const SUPPORTED_PROVIDERS = [
   { id: "openai", name: "OpenAI", models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o4-mini"] },
@@ -16,7 +16,7 @@ const SUPPORTED_PROVIDERS = [
 
 export async function GET() {
   try {
-    const { runner } = await requireWorkspaceContext();
+    const { runner } = await requireUserContext();
     const stored = runner.providers ? await runner.providers.listProviders() : [];
     const storedMap = new Map(stored.map((p) => [p.id, p.configured]));
 
@@ -27,7 +27,7 @@ export async function GET() {
 
     return NextResponse.json(providers);
   } catch (error) {
-    if (error instanceof WorkspaceRequiredError) {
+    if (error instanceof AuthRequiredError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
     return NextResponse.json({ error: String(error) }, { status: 500 });

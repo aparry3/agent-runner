@@ -10,13 +10,11 @@ import type {
 describe("SqliteStore", () => {
   let admin: SqliteStore;
   let store: SqliteStore;
-  let workspaceId: string;
+  const userId = "user_test";
 
-  beforeEach(async () => {
+  beforeEach(() => {
     admin = new SqliteStore(":memory:");
-    const ws = await admin.createWorkspace({ clerkOrgId: "org_test", name: "Test" });
-    workspaceId = ws.id;
-    store = admin.forWorkspace(workspaceId);
+    store = admin.forUser(userId);
   });
 
   afterEach(() => {

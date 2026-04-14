@@ -9,14 +9,12 @@ describe("JsonFileStore", () => {
   let admin: JsonFileStore;
   let store: JsonFileStore;
   let tempDir: string;
-  let workspaceId: string;
+  const userId = "user_test";
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), "agent-runner-test-"));
     admin = new JsonFileStore(tempDir);
-    const ws = await admin.createWorkspace({ clerkOrgId: "org_test", name: "Test" });
-    workspaceId = ws.id;
-    store = admin.forWorkspace(workspaceId);
+    store = admin.forUser(userId);
   });
 
   afterEach(async () => {
@@ -294,10 +292,9 @@ describe("JsonFileStore", () => {
     });
   });
 
-  describe("Workspace isolation", () => {
-    it("does not leak agents across workspaces", async () => {
-      const wsB = await admin.createWorkspace({ clerkOrgId: "org_b", name: "B" });
-      const storeB = admin.forWorkspace(wsB.id);
+  describe("User isolation", () => {
+    it("does not leak agents across users", async () => {
+      const storeB = admin.forUser("user_b");
 
       await store.putAgent({
         id: "secret",
@@ -312,10 +309,10 @@ describe("JsonFileStore", () => {
 
   describe("ApiKeyStore", () => {
     it("creates + resolves + revokes", async () => {
-      const { record, rawKey } = await admin.createApiKey({ workspaceId, name: "k" });
+      const { record, rawKey } = await admin.createApiKey({ userId, name: "k" });
       const resolved = await admin.resolveApiKey(rawKey);
-      expect(resolved).toEqual({ workspaceId, keyId: record.id });
-      await admin.revokeApiKey({ workspaceId, keyId: record.id });
+      expect(resolved).toEqual({ userId, keyId: record.id });
+      await admin.revokeApiKey({ userId, keyId: record.id });
       expect(await admin.resolveApiKey(rawKey)).toBeNull();
     });
   });

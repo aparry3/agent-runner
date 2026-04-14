@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireWorkspaceContext, WorkspaceRequiredError } from "@/lib/workspace";
+import { requireUserContext, AuthRequiredError } from "@/lib/user";
 import { getStore } from "@/lib/store";
 
 export async function DELETE(
@@ -8,12 +8,12 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const { workspace } = await requireWorkspaceContext();
+    const { userId } = await requireUserContext();
     const adminStore = await getStore();
-    await adminStore.revokeApiKey({ workspaceId: workspace.id, keyId: id });
+    await adminStore.revokeApiKey({ userId, keyId: id });
     return NextResponse.json({ id, revoked: true });
   } catch (error) {
-    if (error instanceof WorkspaceRequiredError) {
+    if (error instanceof AuthRequiredError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
     return NextResponse.json({ error: String(error) }, { status: 500 });

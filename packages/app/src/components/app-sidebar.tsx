@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { OrganizationSwitcher, UserButton, useAuth } from "@clerk/nextjs";
+import { UserButton, useAuth } from "@clerk/nextjs";
+import { useEffect, useState } from "react";
 
 const primaryLinks = [
   { href: "/agents", label: "Agents" },
@@ -19,6 +20,24 @@ const secondaryLinks = [
 export function AppSidebar() {
   const pathname = usePathname();
   const { isSignedIn } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      setIsAdmin(false);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.isSuperAdmin) setIsAdmin(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isSignedIn]);
 
   return (
     <aside className="border-b border-stone-200 bg-white/90 backdrop-blur lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-72 lg:flex-col lg:border-b-0 lg:border-r">
@@ -29,22 +48,6 @@ export function AppSidebar() {
           </div>
           <div className="mt-2 text-xl font-semibold text-zinc-950">Agent Runner</div>
         </Link>
-
-        {isSignedIn && (
-          <div className="mb-4 px-3">
-            <OrganizationSwitcher
-              hidePersonal
-              afterCreateOrganizationUrl="/onboarding"
-              afterSelectOrganizationUrl="/agents"
-              appearance={{
-                elements: {
-                  rootBox: "w-full",
-                  organizationSwitcherTrigger: "w-full justify-start",
-                },
-              }}
-            />
-          </div>
-        )}
 
         <nav className="flex flex-col gap-1">
           {primaryLinks.map((link) => (
@@ -66,6 +69,19 @@ export function AppSidebar() {
               {link.label}
             </SidebarLink>
           ))}
+          {isAdmin && (
+            <SidebarLink
+              href="/system"
+              active={pathname === "/system" || pathname.startsWith("/system/")}
+            >
+              <span className="flex items-center gap-2">
+                System Agents
+                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-900">
+                  Admin
+                </span>
+              </span>
+            </SidebarLink>
+          )}
         </nav>
 
         {isSignedIn && (

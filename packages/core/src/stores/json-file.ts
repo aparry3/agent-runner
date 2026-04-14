@@ -6,7 +6,6 @@ import type {
   AgentVersionSummary,
   ProviderConfig,
   UnifiedStore,
-  Workspace,
   ApiKeyRecord,
   Message,
   SessionSummary,
@@ -23,7 +22,7 @@ interface StoredAgentVersion {
 
 interface ApiKeyRow {
   id: string;
-  workspaceId: string;
+  userId: string;
   name: string;
   keyPrefix: string;
   keyHash: string;
@@ -33,29 +32,29 @@ interface ApiKeyRow {
 }
 
 /**
- * JSON file store. Workspace-scoped data lives under
- *   basePath/workspaces/<workspaceId>/{agents,sessions,context,logs,providers}/
- * Workspace + API key registries are top-level JSON files.
+ * JSON file store. User-scoped data lives under
+ *   basePath/users/<userId>/{agents,sessions,context,logs,providers}/
+ * API key registry is a top-level JSON file.
  */
 export class JsonFileStore implements UnifiedStore {
   private basePath: string;
-  readonly workspaceId: string | null;
+  readonly userId: string | null;
   private lastTs = 0;
 
-  constructor(basePath: string, workspaceId?: string) {
+  constructor(basePath: string, userId?: string) {
     this.basePath = basePath;
-    this.workspaceId = workspaceId ?? null;
+    this.userId = userId ?? null;
   }
 
-  forWorkspace(workspaceId: string): JsonFileStore {
-    return new JsonFileStore(this.basePath, workspaceId);
+  forUser(userId: string): JsonFileStore {
+    return new JsonFileStore(this.basePath, userId);
   }
 
-  private requireWorkspace(): string {
-    if (!this.workspaceId) {
-      throw new Error("JsonFileStore: workspace not set. Call forWorkspace(id) first.");
+  private requireUser(): string {
+    if (!this.userId) {
+      throw new Error("JsonFileStore: user not set. Call forUser(id) first.");
     }
-    return this.workspaceId;
+    return this.userId;
   }
 
   private nextTimestamp(): string {
@@ -65,12 +64,12 @@ export class JsonFileStore implements UnifiedStore {
     return new Date(next).toISOString();
   }
 
-  private wsRoot(): string {
-    return join(this.basePath, "workspaces", this.requireWorkspace());
+  private userRoot(): string {
+    return join(this.basePath, "users", this.sanitizeFilename(this.requireUser()));
   }
 
-  private async ensureWorkspaceDirs(): Promise<void> {
-    const root = this.wsRoot();
+  private async ensureUserDirs(): Promise<void> {
+    const root = this.userRoot();
     await mkdir(join(root, "agents"), { recursive: true });
     await mkdir(join(root, "sessions"), { recursive: true });
     await mkdir(join(root, "context"), { recursive: true });
@@ -102,7 +101,7 @@ export class JsonFileStore implements UnifiedStore {
   // ═══ AgentStore ═══
 
   private agentDir(id: string): string {
-    return join(this.wsRoot(), "agents", this.sanitizeFilename(id));
+    return join(this.userRoot(), "agents", this.sanitizeFilename(id));
   }
 
   private async readAllVersions(agentId: string): Promise<StoredAgentVersion[]> {
@@ -118,7 +117,7 @@ export class JsonFileStore implements UnifiedStore {
   }
 
   async getAgent(id: string): Promise<AgentDefinition | null> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     const versions = await this.readAllVersions(id);
     if (versions.length === 0) return null;
     const active = versions.filter((v) => v.activatedAt !== null);
@@ -131,8 +130,8 @@ export class JsonFileStore implements UnifiedStore {
   }
 
   async listAgents(): Promise<Array<{ id: string; name: string; description?: string }>> {
-    await this.ensureWorkspaceDirs();
-    const root = join(this.wsRoot(), "agents");
+    await this.ensureUserDirs();
+    const root = join(this.userRoot(), "agents");
     const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
     const agents: Array<{ id: string; name: string; description?: string }> = [];
 
@@ -148,7 +147,7 @@ export class JsonFileStore implements UnifiedStore {
   }
 
   async putAgent(agent: AgentDefinition): Promise<void> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     const dir = this.agentDir(agent.id);
     await mkdir(dir, { recursive: true });
     const now = this.nextTimestamp();
@@ -161,12 +160,12 @@ export class JsonFileStore implements UnifiedStore {
   }
 
   async deleteAgent(id: string): Promise<void> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     await rm(this.agentDir(id), { recursive: true, force: true });
   }
 
   async listAgentVersions(agentId: string): Promise<AgentVersionSummary[]> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     const versions = await this.readAllVersions(agentId);
     return versions
       .map((v) => ({ createdAt: v.createdAt, activatedAt: v.activatedAt }))
@@ -174,14 +173,14 @@ export class JsonFileStore implements UnifiedStore {
   }
 
   async getAgentVersion(agentId: string, createdAt: string): Promise<AgentDefinition | null> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     const path = join(this.agentDir(agentId), `${this.filenameSafeTimestamp(createdAt)}.json`);
     const v = await this.readJson<StoredAgentVersion>(path);
     return v?.agent ?? null;
   }
 
   async activateAgentVersion(agentId: string, createdAt: string): Promise<void> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     const path = join(this.agentDir(agentId), `${this.filenameSafeTimestamp(createdAt)}.json`);
     const v = await this.readJson<StoredAgentVersion>(path);
     if (!v) return;
@@ -192,17 +191,17 @@ export class JsonFileStore implements UnifiedStore {
   // ═══ SessionStore ═══
 
   private sessionPath(sessionId: string): string {
-    return join(this.wsRoot(), "sessions", `${this.sanitizeFilename(sessionId)}.json`);
+    return join(this.userRoot(), "sessions", `${this.sanitizeFilename(sessionId)}.json`);
   }
 
   async getMessages(sessionId: string): Promise<Message[]> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     const data = await this.readJson<{ messages: Message[] }>(this.sessionPath(sessionId));
     return data?.messages ?? [];
   }
 
   async append(sessionId: string, messages: Message[]): Promise<void> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     const path = this.sessionPath(sessionId);
     const existing = await this.readJson<{ messages: Message[]; createdAt: string }>(path);
     const now = new Date().toISOString();
@@ -216,13 +215,13 @@ export class JsonFileStore implements UnifiedStore {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     await unlink(this.sessionPath(sessionId)).catch(() => {});
   }
 
   async listSessions(_agentId?: string): Promise<SessionSummary[]> {
-    await this.ensureWorkspaceDirs();
-    const dir = join(this.wsRoot(), "sessions");
+    await this.ensureUserDirs();
+    const dir = join(this.userRoot(), "sessions");
     const files = await readdir(dir).catch(() => []);
     const sessions: SessionSummary[] = [];
 
@@ -250,17 +249,17 @@ export class JsonFileStore implements UnifiedStore {
   // ═══ ContextStore ═══
 
   private contextPath(contextId: string): string {
-    return join(this.wsRoot(), "context", `${this.sanitizeFilename(contextId)}.json`);
+    return join(this.userRoot(), "context", `${this.sanitizeFilename(contextId)}.json`);
   }
 
   async getContext(contextId: string): Promise<ContextEntry[]> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     const data = await this.readJson<{ entries: ContextEntry[] }>(this.contextPath(contextId));
     return data?.entries ?? [];
   }
 
   async addContext(contextId: string, entry: ContextEntry): Promise<void> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     const path = this.contextPath(contextId);
     const existing = await this.readJson<{ entries: ContextEntry[] }>(path);
     const entries = [...(existing?.entries ?? []), entry];
@@ -268,23 +267,23 @@ export class JsonFileStore implements UnifiedStore {
   }
 
   async clearContext(contextId: string): Promise<void> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     await unlink(this.contextPath(contextId)).catch(() => {});
   }
 
   // ═══ LogStore ═══
 
   async log(entry: InvocationLog): Promise<void> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     await this.writeJson(
-      join(this.wsRoot(), "logs", `${this.sanitizeFilename(entry.id)}.json`),
+      join(this.userRoot(), "logs", `${this.sanitizeFilename(entry.id)}.json`),
       entry
     );
   }
 
   async getLogs(filter?: LogFilter): Promise<InvocationLog[]> {
-    await this.ensureWorkspaceDirs();
-    const dir = join(this.wsRoot(), "logs");
+    await this.ensureUserDirs();
+    const dir = join(this.userRoot(), "logs");
     const files = await readdir(dir).catch(() => []);
     let logs: InvocationLog[] = [];
 
@@ -294,9 +293,9 @@ export class JsonFileStore implements UnifiedStore {
       if (log) logs.push(log);
     }
 
-    if (filter?.agentId) logs = logs.filter(l => l.agentId === filter.agentId);
-    if (filter?.sessionId) logs = logs.filter(l => l.sessionId === filter.sessionId);
-    if (filter?.since) logs = logs.filter(l => l.timestamp >= filter.since!);
+    if (filter?.agentId) logs = logs.filter((l) => l.agentId === filter.agentId);
+    if (filter?.sessionId) logs = logs.filter((l) => l.sessionId === filter.sessionId);
+    if (filter?.since) logs = logs.filter((l) => l.timestamp >= filter.since!);
 
     logs.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
@@ -307,26 +306,26 @@ export class JsonFileStore implements UnifiedStore {
   }
 
   async getLog(id: string): Promise<InvocationLog | null> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     return this.readJson<InvocationLog>(
-      join(this.wsRoot(), "logs", `${this.sanitizeFilename(id)}.json`)
+      join(this.userRoot(), "logs", `${this.sanitizeFilename(id)}.json`)
     );
   }
 
   // ═══ ProviderStore ═══
 
   private providerPath(id: string): string {
-    return join(this.wsRoot(), "providers", `${this.sanitizeFilename(id)}.json`);
+    return join(this.userRoot(), "providers", `${this.sanitizeFilename(id)}.json`);
   }
 
   async getProvider(id: string): Promise<ProviderConfig | null> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     return this.readJson<ProviderConfig>(this.providerPath(id));
   }
 
   async listProviders(): Promise<Array<{ id: string; configured: boolean }>> {
-    await this.ensureWorkspaceDirs();
-    const dir = join(this.wsRoot(), "providers");
+    await this.ensureUserDirs();
+    const dir = join(this.userRoot(), "providers");
     const files = await readdir(dir).catch(() => []);
     const result: Array<{ id: string; configured: boolean }> = [];
     for (const file of files) {
@@ -340,7 +339,7 @@ export class JsonFileStore implements UnifiedStore {
   }
 
   async putProvider(provider: ProviderConfig): Promise<void> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     await this.writeJson(this.providerPath(provider.id), {
       ...provider,
       updatedAt: new Date().toISOString(),
@@ -348,51 +347,11 @@ export class JsonFileStore implements UnifiedStore {
   }
 
   async deleteProvider(id: string): Promise<void> {
-    await this.ensureWorkspaceDirs();
+    await this.ensureUserDirs();
     await unlink(this.providerPath(id)).catch(() => {});
   }
 
-  // ═══ WorkspaceStore (admin — no scoping) ═══
-
-  private workspacesPath(): string {
-    return join(this.basePath, "workspaces.json");
-  }
-
-  private async readWorkspaces(): Promise<Record<string, Workspace>> {
-    return (await this.readJson<Record<string, Workspace>>(this.workspacesPath())) ?? {};
-  }
-
-  private async writeWorkspaces(map: Record<string, Workspace>): Promise<void> {
-    await mkdir(this.basePath, { recursive: true });
-    await this.writeJson(this.workspacesPath(), map);
-  }
-
-  async getWorkspaceByClerkOrgId(clerkOrgId: string): Promise<Workspace | null> {
-    const all = await this.readWorkspaces();
-    return Object.values(all).find(w => w.clerkOrgId === clerkOrgId) ?? null;
-  }
-
-  async getWorkspaceById(id: string): Promise<Workspace | null> {
-    const all = await this.readWorkspaces();
-    return all[id] ?? null;
-  }
-
-  async createWorkspace(params: { clerkOrgId: string; name: string }): Promise<Workspace> {
-    const all = await this.readWorkspaces();
-    const existing = Object.values(all).find(w => w.clerkOrgId === params.clerkOrgId);
-    if (existing) return existing;
-    const ws: Workspace = {
-      id: randomUUID(),
-      clerkOrgId: params.clerkOrgId,
-      name: params.name,
-      createdAt: new Date().toISOString(),
-    };
-    all[ws.id] = ws;
-    await this.writeWorkspaces(all);
-    return ws;
-  }
-
-  // ═══ ApiKeyStore (admin — no scoping) ═══
+  // ═══ ApiKeyStore (unscoped) ═══
 
   private apiKeysPath(): string {
     return join(this.basePath, "api-keys.json");
@@ -407,13 +366,13 @@ export class JsonFileStore implements UnifiedStore {
     await this.writeJson(this.apiKeysPath(), rows);
   }
 
-  async createApiKey(params: { workspaceId: string; name: string }): Promise<{ record: ApiKeyRecord; rawKey: string }> {
+  async createApiKey(params: { userId: string; name: string }): Promise<{ record: ApiKeyRecord; rawKey: string }> {
     const rawKey = `ar_live_${randomBytes(24).toString("base64url")}`;
     const keyPrefix = rawKey.slice(0, 14);
     const keyHash = createHash("sha256").update(rawKey).digest("hex");
     const row: ApiKeyRow = {
       id: randomUUID(),
-      workspaceId: params.workspaceId,
+      userId: params.userId,
       name: params.name,
       keyPrefix,
       keyHash,
@@ -427,37 +386,37 @@ export class JsonFileStore implements UnifiedStore {
     return { record: rowToRecord(row), rawKey };
   }
 
-  async listApiKeys(workspaceId: string): Promise<ApiKeyRecord[]> {
+  async listApiKeys(userId: string): Promise<ApiKeyRecord[]> {
     const rows = await this.readApiKeys();
     return rows
-      .filter(r => r.workspaceId === workspaceId)
+      .filter((r) => r.userId === userId)
       .map(rowToRecord)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
-  async revokeApiKey(params: { workspaceId: string; keyId: string }): Promise<void> {
+  async revokeApiKey(params: { userId: string; keyId: string }): Promise<void> {
     const rows = await this.readApiKeys();
-    const row = rows.find(r => r.id === params.keyId && r.workspaceId === params.workspaceId);
+    const row = rows.find((r) => r.id === params.keyId && r.userId === params.userId);
     if (!row) return;
     row.revokedAt = new Date().toISOString();
     await this.writeApiKeys(rows);
   }
 
-  async resolveApiKey(rawKey: string): Promise<{ workspaceId: string; keyId: string } | null> {
+  async resolveApiKey(rawKey: string): Promise<{ userId: string; keyId: string } | null> {
     const keyHash = createHash("sha256").update(rawKey).digest("hex");
     const rows = await this.readApiKeys();
-    const row = rows.find(r => r.keyHash === keyHash && !r.revokedAt);
+    const row = rows.find((r) => r.keyHash === keyHash && !r.revokedAt);
     if (!row) return null;
     row.lastUsedAt = new Date().toISOString();
     await this.writeApiKeys(rows);
-    return { workspaceId: row.workspaceId, keyId: row.id };
+    return { userId: row.userId, keyId: row.id };
   }
 }
 
 function rowToRecord(row: ApiKeyRow): ApiKeyRecord {
   return {
     id: row.id,
-    workspaceId: row.workspaceId,
+    userId: row.userId,
     name: row.name,
     keyPrefix: row.keyPrefix,
     createdAt: row.createdAt,

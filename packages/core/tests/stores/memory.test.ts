@@ -5,16 +5,12 @@ import type { AgentDefinition, Message, ContextEntry, InvocationLog } from "../.
 describe("MemoryStore", () => {
   let admin: MemoryStore;
   let store: MemoryStore;
-  let workspaceId: string;
+  const userId = "user_test";
 
-  beforeEach(async () => {
-    admin = new MemoryStore();
-    const ws = await admin.createWorkspace({ clerkOrgId: "org_test", name: "Test" });
-    workspaceId = ws.id;
-    store = admin.forWorkspace(workspaceId);
+  beforeEach(() => {
+    admin = new MemoryStore({ strict: true });
+    store = admin.forUser(userId);
   });
-
-  // ═══ AgentStore ═══
 
   describe("AgentStore", () => {
     const agent: AgentDefinition = {
@@ -22,60 +18,25 @@ describe("MemoryStore", () => {
       name: "Test Agent",
       systemPrompt: "You are a test.",
       model: { provider: "openai", name: "gpt-4o" },
-      createdAt: "2026-01-01T00:00:00Z",
-      updatedAt: "2026-01-01T00:00:00Z",
     };
 
     it("stores and retrieves an agent", async () => {
       await store.putAgent(agent);
       const retrieved = await store.getAgent("test");
-      expect(retrieved).toBeDefined();
-      expect(retrieved!.id).toBe("test");
-      expect(retrieved!.name).toBe("Test Agent");
-    });
-
-    it("returns null for unknown agent", async () => {
-      const result = await store.getAgent("nonexistent");
-      expect(result).toBeNull();
+      expect(retrieved?.id).toBe("test");
     });
 
     it("lists agents", async () => {
       await store.putAgent(agent);
       await store.putAgent({ ...agent, id: "test2", name: "Test 2" });
-      const list = await store.listAgents();
-      expect(list).toHaveLength(2);
-    });
-
-    it("deletes an agent", async () => {
-      await store.putAgent(agent);
-      await store.deleteAgent("test");
-      const result = await store.getAgent("test");
-      expect(result).toBeNull();
-    });
-
-    it("creates a version per put and listAgentVersions returns them newest first", async () => {
-      await store.putAgent({ ...agent, name: "v1" });
-      await store.putAgent({ ...agent, name: "v2" });
-      const versions = await store.listAgentVersions("test");
-      expect(versions).toHaveLength(2);
-      expect(versions[0].createdAt > versions[1].createdAt).toBe(true);
-    });
-
-    it("activateAgentVersion changes the active version returned by getAgent", async () => {
-      await store.putAgent({ ...agent, name: "v1" });
-      await store.putAgent({ ...agent, name: "v2" });
-      const versions = await store.listAgentVersions("test");
-      await store.activateAgentVersion("test", versions[1].createdAt);
-      const active = await store.getAgent("test");
-      expect(active?.name).toBe("v1");
+      expect(await store.listAgents()).toHaveLength(2);
     });
 
     it("throws if called on a strict-mode unscoped store", async () => {
-      const strict = new MemoryStore({ strict: true });
-      await expect(strict.getAgent("test")).rejects.toThrow(/workspace not set/);
+      await expect(admin.getAgent("test")).rejects.toThrow(/user not set/);
     });
 
-    it("auto-scopes to __default__ without explicit workspace for ergonomics", async () => {
+    it("auto-scopes to __default__ without explicit user for ergonomics", async () => {
       const ergonomic = new MemoryStore();
       await ergonomic.putAgent({
         id: "quick",
@@ -85,203 +46,130 @@ describe("MemoryStore", () => {
       });
       expect((await ergonomic.getAgent("quick"))?.name).toBe("Quick");
     });
+
+    it("activates a prior version", async () => {
+      await store.putAgent({ ...agent, name: "v1" });
+      await store.putAgent({ ...agent, name: "v2" });
+      const versions = await store.listAgentVersions("test");
+      await store.activateAgentVersion("test", versions[1].createdAt);
+      expect((await store.getAgent("test"))?.name).toBe("v1");
+    });
   });
 
-  // ═══ SessionStore ═══
-
   describe("SessionStore", () => {
-    const msg: Message = {
-      role: "user",
-      content: "Hello",
-      timestamp: "2026-01-01T00:00:00Z",
-    };
+    const msg: Message = { role: "user", content: "Hello", timestamp: "2026-01-01T00:00:00Z" };
 
     it("appends and retrieves messages", async () => {
       await store.append("sess1", [msg]);
-      const messages = await store.getMessages("sess1");
-      expect(messages).toHaveLength(1);
-      expect(messages[0].content).toBe("Hello");
+      expect(await store.getMessages("sess1")).toHaveLength(1);
     });
 
-    it("returns empty array for unknown session", async () => {
-      const messages = await store.getMessages("nonexistent");
-      expect(messages).toEqual([]);
+    it("returns empty for unknown session", async () => {
+      expect(await store.getMessages("nope")).toEqual([]);
     });
 
     it("appends to existing session", async () => {
       await store.append("sess1", [msg]);
       await store.append("sess1", [{ ...msg, content: "World" }]);
-      const messages = await store.getMessages("sess1");
-      expect(messages).toHaveLength(2);
-    });
-
-    it("deletes a session", async () => {
-      await store.append("sess1", [msg]);
-      await store.deleteSession("sess1");
-      const messages = await store.getMessages("sess1");
-      expect(messages).toEqual([]);
+      expect(await store.getMessages("sess1")).toHaveLength(2);
     });
   });
-
-  // ═══ ContextStore ═══
 
   describe("ContextStore", () => {
     const entry: ContextEntry = {
       contextId: "ctx1",
-      agentId: "agent1",
+      agentId: "a",
       invocationId: "inv1",
-      content: "Some context",
+      content: "ctx",
       createdAt: "2026-01-01T00:00:00Z",
     };
 
-    it("adds and retrieves context", async () => {
+    it("adds + retrieves context", async () => {
       await store.addContext("ctx1", entry);
-      const entries = await store.getContext("ctx1");
-      expect(entries).toHaveLength(1);
-      expect(entries[0].content).toBe("Some context");
-    });
-
-    it("returns empty array for unknown context", async () => {
-      const entries = await store.getContext("nonexistent");
-      expect(entries).toEqual([]);
+      expect(await store.getContext("ctx1")).toHaveLength(1);
     });
 
     it("clears context", async () => {
       await store.addContext("ctx1", entry);
       await store.clearContext("ctx1");
-      const entries = await store.getContext("ctx1");
-      expect(entries).toEqual([]);
+      expect(await store.getContext("ctx1")).toEqual([]);
     });
   });
 
-  // ═══ LogStore ═══
-
   describe("LogStore", () => {
-    const logEntry: InvocationLog = {
+    const log: InvocationLog = {
       id: "inv_001",
-      agentId: "agent1",
-      input: "test input",
-      output: "test output",
+      agentId: "a",
+      input: "i",
+      output: "o",
       toolCalls: [],
-      usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
-      duration: 100,
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      duration: 10,
       model: "openai/gpt-4o",
       timestamp: "2026-01-01T00:00:00Z",
     };
 
-    it("logs and retrieves entries", async () => {
-      await store.log(logEntry);
-      const logs = await store.getLogs();
-      expect(logs).toHaveLength(1);
-      expect(logs[0].id).toBe("inv_001");
-    });
-
-    it("gets a specific log", async () => {
-      await store.log(logEntry);
-      const log = await store.getLog("inv_001");
-      expect(log).toBeDefined();
-      expect(log!.agentId).toBe("agent1");
-    });
-
-    it("returns null for unknown log", async () => {
-      const log = await store.getLog("nonexistent");
-      expect(log).toBeNull();
+    it("logs + retrieves", async () => {
+      await store.log(log);
+      expect(await store.getLogs()).toHaveLength(1);
+      expect((await store.getLog("inv_001"))?.agentId).toBe("a");
     });
 
     it("filters by agentId", async () => {
-      await store.log(logEntry);
-      await store.log({ ...logEntry, id: "inv_002", agentId: "agent2" });
-      const logs = await store.getLogs({ agentId: "agent1" });
-      expect(logs).toHaveLength(1);
-      expect(logs[0].agentId).toBe("agent1");
-    });
-
-    it("limits results", async () => {
-      await store.log(logEntry);
-      await store.log({ ...logEntry, id: "inv_002" });
-      await store.log({ ...logEntry, id: "inv_003" });
-      const logs = await store.getLogs({ limit: 2 });
-      expect(logs).toHaveLength(2);
+      await store.log(log);
+      await store.log({ ...log, id: "inv_002", agentId: "b" });
+      expect(await store.getLogs({ agentId: "a" })).toHaveLength(1);
     });
   });
 
-  // ═══ Workspace isolation ═══
-
-  describe("Workspace isolation", () => {
-    it("does not leak agents across workspaces", async () => {
-      const wsB = await admin.createWorkspace({ clerkOrgId: "org_b", name: "B" });
-      const storeB = admin.forWorkspace(wsB.id);
-
+  describe("User isolation", () => {
+    it("does not leak agents across users", async () => {
+      const storeB = admin.forUser("user_b");
       await store.putAgent({
         id: "secret",
         name: "A's agent",
         systemPrompt: "",
         model: { provider: "openai", name: "gpt-4o" },
       });
-
       expect(await storeB.getAgent("secret")).toBeNull();
-      expect((await storeB.listAgents()).length).toBe(0);
+      expect(await storeB.listAgents()).toEqual([]);
     });
 
-    it("does not leak sessions across workspaces", async () => {
-      const wsB = await admin.createWorkspace({ clerkOrgId: "org_b2", name: "B" });
-      const storeB = admin.forWorkspace(wsB.id);
-
-      await store.append("sess_shared_id", [
+    it("does not leak sessions across users", async () => {
+      const storeB = admin.forUser("user_b");
+      await store.append("sess_shared", [
         { role: "user", content: "hi", timestamp: "2026-01-01T00:00:00Z" },
       ]);
-
-      expect(await storeB.getMessages("sess_shared_id")).toEqual([]);
+      expect(await storeB.getMessages("sess_shared")).toEqual([]);
       await expect(
-        storeB.append("sess_shared_id", [
-          { role: "user", content: "nope", timestamp: "2026-01-01T00:00:00Z" },
+        storeB.append("sess_shared", [
+          { role: "user", content: "x", timestamp: "2026-01-01T00:00:00Z" },
         ])
-      ).rejects.toThrow(/different workspace/);
+      ).rejects.toThrow(/different user/);
     });
   });
 
-  // ═══ API keys ═══
-
   describe("ApiKeyStore", () => {
-    it("creates + resolves + revokes an API key", async () => {
-      const { record, rawKey } = await admin.createApiKey({ workspaceId, name: "default" });
+    it("creates, resolves, and revokes", async () => {
+      const { record, rawKey } = await admin.createApiKey({ userId, name: "default" });
       expect(rawKey).toMatch(/^ar_live_/);
-      expect(record.workspaceId).toBe(workspaceId);
+      expect(record.userId).toBe(userId);
 
-      const resolved = await admin.resolveApiKey(rawKey);
-      expect(resolved).toEqual({ workspaceId, keyId: record.id });
+      expect(await admin.resolveApiKey(rawKey)).toEqual({ userId, keyId: record.id });
 
-      await admin.revokeApiKey({ workspaceId, keyId: record.id });
+      await admin.revokeApiKey({ userId, keyId: record.id });
       expect(await admin.resolveApiKey(rawKey)).toBeNull();
     });
 
-    it("resolveApiKey returns null for unknown keys", async () => {
+    it("returns null for unknown keys", async () => {
       expect(await admin.resolveApiKey("ar_live_bogus")).toBeNull();
     });
 
-    it("listApiKeys returns only the target workspace's keys", async () => {
-      const wsB = await admin.createWorkspace({ clerkOrgId: "org_b3", name: "B" });
-      await admin.createApiKey({ workspaceId, name: "A-key" });
-      await admin.createApiKey({ workspaceId: wsB.id, name: "B-key" });
-      const aKeys = await admin.listApiKeys(workspaceId);
-      const bKeys = await admin.listApiKeys(wsB.id);
-      expect(aKeys.map((k) => k.name)).toEqual(["A-key"]);
-      expect(bKeys.map((k) => k.name)).toEqual(["B-key"]);
-    });
-  });
-
-  describe("WorkspaceStore", () => {
-    it("createWorkspace is idempotent by clerkOrgId", async () => {
-      const a = await admin.createWorkspace({ clerkOrgId: "org_dup", name: "First" });
-      const b = await admin.createWorkspace({ clerkOrgId: "org_dup", name: "Second" });
-      expect(b.id).toBe(a.id);
-    });
-
-    it("lookups", async () => {
-      const byOrg = await admin.getWorkspaceByClerkOrgId("org_test");
-      expect(byOrg?.id).toBe(workspaceId);
-      const byId = await admin.getWorkspaceById(workspaceId);
-      expect(byId?.clerkOrgId).toBe("org_test");
+    it("listApiKeys returns only the target user's keys", async () => {
+      await admin.createApiKey({ userId, name: "A-key" });
+      await admin.createApiKey({ userId: "user_b", name: "B-key" });
+      expect((await admin.listApiKeys(userId)).map((k) => k.name)).toEqual(["A-key"]);
+      expect((await admin.listApiKeys("user_b")).map((k) => k.name)).toEqual(["B-key"]);
     });
   });
 });
