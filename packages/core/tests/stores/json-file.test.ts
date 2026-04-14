@@ -6,12 +6,17 @@ import { tmpdir } from "node:os";
 import type { AgentDefinition, Message, ContextEntry, InvocationLog } from "../../src/types.js";
 
 describe("JsonFileStore", () => {
+  let admin: JsonFileStore;
   let store: JsonFileStore;
   let tempDir: string;
+  let workspaceId: string;
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), "agent-runner-test-"));
-    store = new JsonFileStore(tempDir);
+    admin = new JsonFileStore(tempDir);
+    const ws = await admin.createWorkspace({ clerkOrgId: "org_test", name: "Test" });
+    workspaceId = ws.id;
+    store = admin.forWorkspace(workspaceId);
   });
 
   afterEach(async () => {
@@ -286,6 +291,32 @@ describe("JsonFileStore", () => {
       await store.deleteAgent("nope");
       await store.deleteSession("nope");
       await store.clearContext("nope");
+    });
+  });
+
+  describe("Workspace isolation", () => {
+    it("does not leak agents across workspaces", async () => {
+      const wsB = await admin.createWorkspace({ clerkOrgId: "org_b", name: "B" });
+      const storeB = admin.forWorkspace(wsB.id);
+
+      await store.putAgent({
+        id: "secret",
+        name: "A",
+        systemPrompt: "",
+        model: { provider: "openai", name: "gpt-4o" },
+      });
+      expect(await storeB.getAgent("secret")).toBeNull();
+      expect((await storeB.listAgents()).length).toBe(0);
+    });
+  });
+
+  describe("ApiKeyStore", () => {
+    it("creates + resolves + revokes", async () => {
+      const { record, rawKey } = await admin.createApiKey({ workspaceId, name: "k" });
+      const resolved = await admin.resolveApiKey(rawKey);
+      expect(resolved).toEqual({ workspaceId, keyId: record.id });
+      await admin.revokeApiKey({ workspaceId, keyId: record.id });
+      expect(await admin.resolveApiKey(rawKey)).toBeNull();
     });
   });
 });

@@ -24,9 +24,11 @@ pnpm test
 ```
 packages/
 ├── core/           # "agent-runner" — the main SDK
-├── studio/         # "@agent-runner/studio" — dev UI
+├── manifest/       # "@agent-runner/manifest" — YAML agent executor
 ├── store-sqlite/   # "@agent-runner/store-sqlite" — SQLite adapter
-└── cli/            # CLI commands (bundled with core)
+├── store-postgres/ # "@agent-runner/store-postgres" — Postgres adapter (multi-tenant)
+├── worker/         # "@agent-runner/worker" — Hono HTTP worker
+└── app/            # "@agent-runner/app" — Next.js multi-tenant UI
 ```
 
 ## Development
@@ -35,8 +37,9 @@ packages/
 # Watch mode for core
 cd packages/core && pnpm dev
 
-# Watch mode for studio UI
-cd packages/studio && pnpm dev:ui
+# Run the hosted UI + worker locally
+pnpm --filter @agent-runner/worker dev    # terminal 1
+pnpm --filter @agent-runner/app dev       # terminal 2
 
 # Run specific tests
 cd packages/core && pnpm vitest run tests/runner.test.ts
@@ -46,9 +49,10 @@ cd packages/core && pnpm vitest run tests/runner.test.ts
 
 - **Write tests** for new features and bug fixes
 - **Use Biome** for formatting (`pnpm lint`)
-- **Keep the core small** — UI deps stay in the studio package
+- **Keep the core small** — UI deps stay in the `app` package
 - **Agent definitions are data** — avoid patterns that require code in definitions
 - **Document public APIs** with TSDoc comments
+- **Multi-tenancy** — all store reads/writes must be workspace-scoped via `store.forWorkspace(id)` before calling agent/session/log/provider methods
 
 ## Store Adapters
 

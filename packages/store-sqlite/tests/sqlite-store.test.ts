@@ -8,14 +8,19 @@ import type {
 } from "@agent-runner/core";
 
 describe("SqliteStore", () => {
+  let admin: SqliteStore;
   let store: SqliteStore;
+  let workspaceId: string;
 
-  beforeEach(() => {
-    store = new SqliteStore(":memory:");
+  beforeEach(async () => {
+    admin = new SqliteStore(":memory:");
+    const ws = await admin.createWorkspace({ clerkOrgId: "org_test", name: "Test" });
+    workspaceId = ws.id;
+    store = admin.forWorkspace(workspaceId);
   });
 
   afterEach(() => {
-    store.close();
+    admin.close();
   });
 
   // ═══════════════════════════════════════════════════════════════════

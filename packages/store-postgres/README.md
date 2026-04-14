@@ -264,28 +264,12 @@ const runner = createRunner({
 });
 ```
 
-### With Studio
-
-```typescript
-import { createRunner } from "@agent-runner/core";
-import { PostgresStore } from "@agent-runner/store-postgres";
-import { createStudio } from "@agent-runner/studio";
-
-const runner = createRunner({
-  store: new PostgresStore(process.env.DATABASE_URL!),
-});
-
-// Studio reads/writes through the same Postgres store
-const studio = await createStudio(runner, { port: 4000 });
-```
-
 ## Related Packages
 
 | Package | Description |
 |---|---|
 | [`@agent-runner/core`](../core) | Core SDK — createRunner, agents, tools, stores |
 | [`@agent-runner/store-sqlite`](../store-sqlite) | SQLite adapter for single-server deployments |
-| [`@agent-runner/studio`](../studio) | Development UI |
 
 ## Contributing
 

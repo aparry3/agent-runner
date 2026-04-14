@@ -74,14 +74,41 @@ function createBackend(): MemoryBackend {
   };
 }
 
+/**
+ * MemoryStore is the default store for quick-start / test usage. Unlike
+ * PostgresStore / SqliteStore, it auto-scopes to a "__default__" workspace
+ * when constructed without explicit workspaceId so tests and single-tenant
+ * demos don't need forWorkspace() ceremony. Multi-tenant callers still use
+ * forWorkspace() as normal.
+ */
+const DEFAULT_WORKSPACE_ID = "__default__";
+
 export class MemoryStore implements UnifiedStore {
   private backend: MemoryBackend;
   readonly workspaceId: string | null;
   private lastTs = 0;
 
-  constructor(opts: { workspaceId?: string; backend?: MemoryBackend } = {}) {
+  constructor(opts: { workspaceId?: string; backend?: MemoryBackend; strict?: boolean } = {}) {
     this.backend = opts.backend ?? createBackend();
-    this.workspaceId = opts.workspaceId ?? null;
+    if (opts.workspaceId !== undefined) {
+      this.workspaceId = opts.workspaceId;
+    } else if (opts.strict) {
+      this.workspaceId = null;
+    } else {
+      // Ergonomic default: auto-scope to a singleton workspace.
+      this.workspaceId = DEFAULT_WORKSPACE_ID;
+      if (!this.backend.workspaces.has(DEFAULT_WORKSPACE_ID)) {
+        const now = new Date().toISOString();
+        const ws: Workspace = {
+          id: DEFAULT_WORKSPACE_ID,
+          clerkOrgId: DEFAULT_WORKSPACE_ID,
+          name: "Default",
+          createdAt: now,
+        };
+        this.backend.workspaces.set(ws.id, ws);
+        this.backend.workspacesByOrg.set(ws.clerkOrgId, ws);
+      }
+    }
   }
 
   forWorkspace(workspaceId: string): MemoryStore {

@@ -6,7 +6,9 @@
  * Commands:
  *   init     — Scaffold a new agent-runner project
  *   invoke   — Invoke an agent from the command line
- *   studio   — Launch the Studio UI (requires @agent-runner/studio)
+ *   list     — List registered agents
+ *   playground — Interactive REPL for an agent
+ *   eval     — Run an agent's eval suite
  */
 
 import { parseArgs } from "node:util";
@@ -27,7 +29,6 @@ Commands:
   invoke <agentId>  Invoke an agent (requires agent-runner.config.ts)
   playground <id>   Interactive REPL for testing an agent
   eval <agentId>    Run eval suite for an agent
-  studio            Launch the Studio UI
 
 Options:
   -h, --help        Show help
@@ -45,7 +46,6 @@ Examples:
   agent-runner playground greeter
   agent-runner eval support --json
   agent-runner eval --all --threshold 0.8
-  agent-runner studio
 `.trim();
 
 async function main() {
@@ -81,9 +81,6 @@ async function main() {
       break;
     case "playground":
       await cmdPlayground(args.slice(1));
-      break;
-    case "studio":
-      await cmdStudio();
       break;
     default:
       console.error(`Unknown command: ${command}`);
@@ -235,7 +232,6 @@ async function scaffoldProject(cwd: string, opts: InitOptions) {
       scripts: {
         dev: "tsx watch agent-runner.config.ts",
         invoke: "tsx --import ./agent-runner.config.ts node_modules/.bin/agent-runner invoke",
-        studio: "agent-runner studio",
         eval: "agent-runner eval",
         playground: "agent-runner playground",
       },
@@ -244,7 +240,6 @@ async function scaffoldProject(cwd: string, opts: InitOptions) {
         zod: "^3.23.0",
       },
       devDependencies: {
-        "@agent-runner/studio": "^0.1.0",
         tsx: "^4.7.0",
         typescript: "^5.7.0",
       },
@@ -348,10 +343,7 @@ data/logs/
     3. Try it:
        npx agent-runner invoke ${agentIdForInvoke} "Hello!"
 
-    4. Launch Studio:
-       npx agent-runner studio
-
-    5. Interactive playground:
+    4. Interactive playground:
        npx agent-runner playground ${agentIdForInvoke}
 `);
 }
@@ -906,59 +898,6 @@ async function cmdPlayground(args: string[]) {
     if (runner.shutdown) {
       await runner.shutdown();
     }
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// studio — launch the Studio UI
-// ═══════════════════════════════════════════════════════════════════
-
-async function cmdStudio() {
-  const configPath = resolve(process.cwd(), "agent-runner.config.ts");
-
-  // Try to load the runner from config
-  let runner: any;
-  try {
-    if (existsSync(configPath)) {
-      const config = await import(configPath);
-      runner = config.default;
-    }
-  } catch {
-    // Config load failed — will create a default runner
-  }
-
-  if (!runner) {
-    // Create a minimal runner with the default stores
-    const { createRunner } = await import("./runner.js");
-    runner = createRunner({
-      defaults: { model: { provider: "openai", name: "gpt-4o-mini" } },
-    });
-    console.log("⚠️  No agent-runner.config.ts found. Using default runner.\n");
-  }
-
-  // Try to import the studio package
-  try {
-    const studioModule = await import(/* @vite-ignore */ "@agent-runner/studio" as string)
-      .catch(() => null);
-    if (!studioModule) throw new Error("Cannot find @agent-runner/studio");
-    const { createStudio } = studioModule;
-    const port = parseInt(process.env.PORT || "4000", 10);
-
-    await createStudio(runner, {
-      port,
-      onReady: (url: string) => {
-        console.log(`\n  ⚡ agent-runner Studio`);
-        console.log(`  ➜ ${url}\n`);
-      },
-    });
-  } catch (err) {
-    if (String(err).includes("Cannot find")) {
-      console.error("❌ @agent-runner/studio is not installed.");
-      console.error("   Install it: pnpm add -D @agent-runner/studio");
-    } else {
-      console.error(`❌ Failed to start Studio: ${err instanceof Error ? err.message : String(err)}`);
-    }
-    process.exit(1);
   }
 }
 

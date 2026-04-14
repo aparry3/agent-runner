@@ -473,9 +473,6 @@ npx agent-runner eval classifier
 
 # Interactive playground (REPL with session support)
 npx agent-runner playground greeter
-
-# Launch Studio UI
-npx agent-runner studio
 ```
 
 ## Model Providers
@@ -522,9 +519,11 @@ Zero overhead when telemetry is not configured.
 
 | Package | Description |
 |---|---|
-| [`@agent-runner/studio`](../studio) | Development UI — agent editor, playground, evals dashboard |
+| [`@agent-runner/manifest`](../manifest) | YAML agent manifest parser + executor |
 | [`@agent-runner/store-sqlite`](../store-sqlite) | SQLite storage adapter |
-| [`@agent-runner/store-postgres`](../store-postgres) | PostgreSQL storage adapter |
+| [`@agent-runner/store-postgres`](../store-postgres) | PostgreSQL storage adapter (multi-tenant) |
+| [`@agent-runner/worker`](../worker) | Hono HTTP worker for executing agents |
+| [`@agent-runner/app`](../app) | Next.js web UI — multi-tenant, Clerk auth |
 
 ## Contributing
 

@@ -27,7 +27,7 @@ console.log(result.output);
 | Locked into one storage backend | Pluggable stores (memory, JSON files, SQLite, Postgres) |
 | MCP bolted on as an afterthought | MCP is a first-class tool source |
 | No built-in testing | Eval system with assertions, LLM-as-judge, CI integration |
-| No visual tooling | Built-in Studio UI (`npx agent-runner studio`) |
+| No visual tooling | Bundled multi-tenant web UI (`packages/app`) |
 | Heavy framework overhead | Minimal library — import what you need |
 
 ## Install
@@ -491,27 +491,20 @@ greeter › Hey there! Welcome — great to have you here.
 
 Commands: `.new` (new session), `.session` (show ID), `.exit` (quit). Sessions persist across turns for multi-turn testing.
 
-## Studio
+## Web UI (`packages/app`)
 
-Visual development UI for defining, testing, and debugging agents:
+`packages/app` is the hosted web UI — Next.js 15 app with Clerk auth and per-workspace multi-tenancy. It pairs with `packages/worker` (Hono) for agent execution. Built for deployment (Vercel + Railway + Neon) and separate from this core SDK.
 
+**Features:** agent editor, playground, tool catalog, sessions + logs browser, API keys per workspace, sign-in/sign-up, Organization switching.
+
+**Run locally:**
 ```bash
-npx agent-runner studio
+# root .env.local with CLERK_*, DATABASE_URL, WORKER_INTERNAL_SECRET
+pnpm --filter @agent-runner/worker dev    # :4001
+pnpm --filter @agent-runner/app dev       # :3000
 ```
 
-Or embed in your app:
-
-```typescript
-import { createStudio } from "@agent-runner/studio";
-const studio = createStudio(runner);
-studio.listen(4000);
-
-// Or as middleware
-import { studioMiddleware } from "@agent-runner/studio/middleware";
-app.use("/studio", studioMiddleware(runner));
-```
-
-**Studio pages:** Agent Editor, Tool Catalog, MCP Servers, Playground, Evals Dashboard, Context Browser, Sessions, Logs.
+See `packages/app/README.md` for deployment.
 
 ## SQLite Store
 
@@ -595,9 +588,6 @@ npx agent-runner invoke greeter "Hello!"
 
 # Run evals
 npx agent-runner eval classifier
-
-# Launch the Studio
-npx agent-runner studio
 ```
 
 ## Packages
@@ -605,9 +595,11 @@ npx agent-runner studio
 | Package | Description |
 |---|---|
 | `agent-runner` | Core SDK — createRunner, invoke, agents, tools, stores |
-| `@agent-runner/studio` | Development UI — agent editor, playground, evals dashboard |
-| `@agent-runner/store-sqlite` | SQLite store adapter for single-server production |
-| `@agent-runner/store-postgres` | PostgreSQL store adapter for multi-server production |
+| `@agent-runner/manifest` | YAML agent manifest parser + executor |
+| `@agent-runner/store-sqlite` | SQLite store adapter (single-server) |
+| `@agent-runner/store-postgres` | PostgreSQL store adapter (production, multi-tenant) |
+| `@agent-runner/worker` | Hono HTTP worker — executes agents over `/run` and `/run/stream` |
+| `@agent-runner/app` | Next.js web UI — multi-tenant, Clerk auth, API keys |
 
 ## License
 

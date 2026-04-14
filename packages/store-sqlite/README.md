@@ -208,21 +208,6 @@ describe("my agent", () => {
 });
 ```
 
-### With Studio
-
-```typescript
-import { createRunner } from "@agent-runner/core";
-import { SqliteStore } from "@agent-runner/store-sqlite";
-import { createStudio } from "@agent-runner/studio";
-
-const runner = createRunner({
-  store: new SqliteStore("./agents.db"),
-});
-
-const studio = await createStudio(runner, { port: 4000 });
-console.log(`Studio running at ${studio.url}`);
-```
-
 ### Advanced: Direct Database Access
 
 ```typescript
@@ -250,7 +235,6 @@ process.on("SIGTERM", async () => {
 |---|---|
 | [`@agent-runner/core`](../core) | Core SDK — createRunner, agents, tools, stores |
 | [`@agent-runner/store-postgres`](../store-postgres) | PostgreSQL adapter for multi-server deployments |
-| [`@agent-runner/studio`](../studio) | Development UI |
 
 ## Contributing
 

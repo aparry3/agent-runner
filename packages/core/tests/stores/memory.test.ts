@@ -3,10 +3,15 @@ import { MemoryStore } from "../../src/stores/memory.js";
 import type { AgentDefinition, Message, ContextEntry, InvocationLog } from "../../src/types.js";
 
 describe("MemoryStore", () => {
+  let admin: MemoryStore;
   let store: MemoryStore;
+  let workspaceId: string;
 
-  beforeEach(() => {
-    store = new MemoryStore();
+  beforeEach(async () => {
+    admin = new MemoryStore();
+    const ws = await admin.createWorkspace({ clerkOrgId: "org_test", name: "Test" });
+    workspaceId = ws.id;
+    store = admin.forWorkspace(workspaceId);
   });
 
   // ═══ AgentStore ═══
@@ -63,6 +68,22 @@ describe("MemoryStore", () => {
       await store.activateAgentVersion("test", versions[1].createdAt);
       const active = await store.getAgent("test");
       expect(active?.name).toBe("v1");
+    });
+
+    it("throws if called on a strict-mode unscoped store", async () => {
+      const strict = new MemoryStore({ strict: true });
+      await expect(strict.getAgent("test")).rejects.toThrow(/workspace not set/);
+    });
+
+    it("auto-scopes to __default__ without explicit workspace for ergonomics", async () => {
+      const ergonomic = new MemoryStore();
+      await ergonomic.putAgent({
+        id: "quick",
+        name: "Quick",
+        systemPrompt: "",
+        model: { provider: "openai", name: "gpt-4o" },
+      });
+      expect((await ergonomic.getAgent("quick"))?.name).toBe("Quick");
     });
   });
 
@@ -181,6 +202,86 @@ describe("MemoryStore", () => {
       await store.log({ ...logEntry, id: "inv_003" });
       const logs = await store.getLogs({ limit: 2 });
       expect(logs).toHaveLength(2);
+    });
+  });
+
+  // ═══ Workspace isolation ═══
+
+  describe("Workspace isolation", () => {
+    it("does not leak agents across workspaces", async () => {
+      const wsB = await admin.createWorkspace({ clerkOrgId: "org_b", name: "B" });
+      const storeB = admin.forWorkspace(wsB.id);
+
+      await store.putAgent({
+        id: "secret",
+        name: "A's agent",
+        systemPrompt: "",
+        model: { provider: "openai", name: "gpt-4o" },
+      });
+
+      expect(await storeB.getAgent("secret")).toBeNull();
+      expect((await storeB.listAgents()).length).toBe(0);
+    });
+
+    it("does not leak sessions across workspaces", async () => {
+      const wsB = await admin.createWorkspace({ clerkOrgId: "org_b2", name: "B" });
+      const storeB = admin.forWorkspace(wsB.id);
+
+      await store.append("sess_shared_id", [
+        { role: "user", content: "hi", timestamp: "2026-01-01T00:00:00Z" },
+      ]);
+
+      expect(await storeB.getMessages("sess_shared_id")).toEqual([]);
+      await expect(
+        storeB.append("sess_shared_id", [
+          { role: "user", content: "nope", timestamp: "2026-01-01T00:00:00Z" },
+        ])
+      ).rejects.toThrow(/different workspace/);
+    });
+  });
+
+  // ═══ API keys ═══
+
+  describe("ApiKeyStore", () => {
+    it("creates + resolves + revokes an API key", async () => {
+      const { record, rawKey } = await admin.createApiKey({ workspaceId, name: "default" });
+      expect(rawKey).toMatch(/^ar_live_/);
+      expect(record.workspaceId).toBe(workspaceId);
+
+      const resolved = await admin.resolveApiKey(rawKey);
+      expect(resolved).toEqual({ workspaceId, keyId: record.id });
+
+      await admin.revokeApiKey({ workspaceId, keyId: record.id });
+      expect(await admin.resolveApiKey(rawKey)).toBeNull();
+    });
+
+    it("resolveApiKey returns null for unknown keys", async () => {
+      expect(await admin.resolveApiKey("ar_live_bogus")).toBeNull();
+    });
+
+    it("listApiKeys returns only the target workspace's keys", async () => {
+      const wsB = await admin.createWorkspace({ clerkOrgId: "org_b3", name: "B" });
+      await admin.createApiKey({ workspaceId, name: "A-key" });
+      await admin.createApiKey({ workspaceId: wsB.id, name: "B-key" });
+      const aKeys = await admin.listApiKeys(workspaceId);
+      const bKeys = await admin.listApiKeys(wsB.id);
+      expect(aKeys.map((k) => k.name)).toEqual(["A-key"]);
+      expect(bKeys.map((k) => k.name)).toEqual(["B-key"]);
+    });
+  });
+
+  describe("WorkspaceStore", () => {
+    it("createWorkspace is idempotent by clerkOrgId", async () => {
+      const a = await admin.createWorkspace({ clerkOrgId: "org_dup", name: "First" });
+      const b = await admin.createWorkspace({ clerkOrgId: "org_dup", name: "Second" });
+      expect(b.id).toBe(a.id);
+    });
+
+    it("lookups", async () => {
+      const byOrg = await admin.getWorkspaceByClerkOrgId("org_test");
+      expect(byOrg?.id).toBe(workspaceId);
+      const byId = await admin.getWorkspaceById(workspaceId);
+      expect(byId?.clerkOrgId).toBe("org_test");
     });
   });
 });
