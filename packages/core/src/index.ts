@@ -98,11 +98,17 @@ export type {
 
   // Store Interfaces
   AgentStore,
+  AgentVersionSummary,
   SessionStore,
   ContextStore,
   LogStore,
   ProviderStore,
   ProviderConfig,
+  WorkspaceStore,
+  ApiKeyStore,
+  Workspace,
+  ApiKeyRecord,
+  ScopableStore,
   UnifiedStore,
 
   // Model Provider

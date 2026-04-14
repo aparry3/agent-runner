@@ -47,6 +47,23 @@ describe("MemoryStore", () => {
       const result = await store.getAgent("test");
       expect(result).toBeNull();
     });
+
+    it("creates a version per put and listAgentVersions returns them newest first", async () => {
+      await store.putAgent({ ...agent, name: "v1" });
+      await store.putAgent({ ...agent, name: "v2" });
+      const versions = await store.listAgentVersions("test");
+      expect(versions).toHaveLength(2);
+      expect(versions[0].createdAt > versions[1].createdAt).toBe(true);
+    });
+
+    it("activateAgentVersion changes the active version returned by getAgent", async () => {
+      await store.putAgent({ ...agent, name: "v1" });
+      await store.putAgent({ ...agent, name: "v2" });
+      const versions = await store.listAgentVersions("test");
+      await store.activateAgentVersion("test", versions[1].createdAt);
+      const active = await store.getAgent("test");
+      expect(active?.name).toBe("v1");
+    });
   });
 
   // ═══ SessionStore ═══

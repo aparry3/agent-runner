@@ -348,11 +348,23 @@ export interface MCPServerConfig {
 // Store Interfaces
 // ═══════════════════════════════════════════════════════════════════════
 
+export interface AgentVersionSummary {
+  createdAt: string;
+  activatedAt: string | null;
+}
+
 export interface AgentStore {
   getAgent(id: string): Promise<AgentDefinition | null>;
   listAgents(): Promise<Array<{ id: string; name: string; description?: string }>>;
   putAgent(agent: AgentDefinition): Promise<void>;
   deleteAgent(id: string): Promise<void>;
+
+  /** List all stored versions of an agent, most recent first. */
+  listAgentVersions(agentId: string): Promise<AgentVersionSummary[]>;
+  /** Fetch a specific version by its created_at timestamp. */
+  getAgentVersion(agentId: string, createdAt: string): Promise<AgentDefinition | null>;
+  /** Mark a specific version as the active one. */
+  activateAgentVersion(agentId: string, createdAt: string): Promise<void>;
 }
 
 export interface SessionStore {
@@ -394,7 +406,70 @@ export interface ProviderStore {
   deleteProvider(id: string): Promise<void>;
 }
 
-export type UnifiedStore = AgentStore & SessionStore & ContextStore & LogStore & ProviderStore;
+// ═══════════════════════════════════════════════════════════════════════
+// Multi-tenancy: Workspaces and API keys
+// ═══════════════════════════════════════════════════════════════════════
+
+export interface Workspace {
+  id: string;
+  clerkOrgId: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface ApiKeyRecord {
+  id: string;
+  workspaceId: string;
+  name: string;
+  keyPrefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+}
+
+/**
+ * Workspace CRUD. These methods are NOT workspace-scoped — they manage
+ * workspaces themselves. Available on both scoped and unscoped store instances.
+ */
+export interface WorkspaceStore {
+  getWorkspaceByClerkOrgId(clerkOrgId: string): Promise<Workspace | null>;
+  getWorkspaceById(id: string): Promise<Workspace | null>;
+  createWorkspace(params: { clerkOrgId: string; name: string }): Promise<Workspace>;
+}
+
+/**
+ * API key management. `createApiKey`/`listApiKeys`/`revokeApiKey` require an
+ * explicit workspaceId (they're admin-style calls, not scoped reads).
+ * `resolveApiKey` is the worker's inbound auth path — given a raw key, return
+ * the workspace it belongs to.
+ */
+export interface ApiKeyStore {
+  createApiKey(params: { workspaceId: string; name: string }): Promise<{ record: ApiKeyRecord; rawKey: string }>;
+  listApiKeys(workspaceId: string): Promise<ApiKeyRecord[]>;
+  revokeApiKey(params: { workspaceId: string; keyId: string }): Promise<void>;
+  resolveApiKey(rawKey: string): Promise<{ workspaceId: string; keyId: string } | null>;
+}
+
+/**
+ * Stores that can be scoped to a workspace. `forWorkspace(id)` returns a new
+ * store instance where every AgentStore/SessionStore/ContextStore/LogStore/
+ * ProviderStore method auto-filters by workspace_id.
+ *
+ * Calling scoped methods on an unscoped store throws.
+ */
+export interface ScopableStore {
+  forWorkspace(workspaceId: string): UnifiedStore;
+  readonly workspaceId: string | null;
+}
+
+export type UnifiedStore = AgentStore &
+  SessionStore &
+  ContextStore &
+  LogStore &
+  ProviderStore &
+  WorkspaceStore &
+  ApiKeyStore &
+  ScopableStore;
 
 // ═══════════════════════════════════════════════════════════════════════
 // Model Provider

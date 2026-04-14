@@ -99,6 +99,32 @@ const MIGRATIONS: string[] = [
   );
   UPDATE ar_schema_version SET version = 2;
   `,
+  // v3: Agent versioning — rebuild ar_agents with a composite (agent_id, created_at)
+  // primary key so every putAgent inserts a new historical row. Existing rows are
+  // copied as a single active version.
+  `
+  CREATE TABLE IF NOT EXISTS ar_agents_new (
+    agent_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    definition JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    activated_at TIMESTAMPTZ,
+    PRIMARY KEY (agent_id, created_at)
+  );
+  CREATE INDEX IF NOT EXISTS idx_ar_agents_new_active ON ar_agents_new(agent_id, activated_at);
+
+  INSERT INTO ar_agents_new (agent_id, name, description, definition, created_at, activated_at)
+  SELECT id, name, description, definition, created_at, COALESCE(updated_at, created_at)
+  FROM ar_agents
+  ON CONFLICT DO NOTHING;
+
+  DROP TABLE ar_agents;
+  ALTER TABLE ar_agents_new RENAME TO ar_agents;
+  ALTER INDEX idx_ar_agents_new_active RENAME TO idx_ar_agents_active;
+
+  UPDATE ar_schema_version SET version = 3;
+  `,
 ];
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -129,6 +155,19 @@ export class PostgresStore implements UnifiedStore {
   private prefix: string;
   private migrated: boolean = false;
   private migratePromise: Promise<void> | null = null;
+  private lastTs = 0;
+
+  /**
+   * Strictly-monotonic ISO timestamp. Two back-to-back calls within the same
+   * millisecond are forced 1ms apart so they don't collide on the composite
+   * (agent_id, created_at) primary key.
+   */
+  private nextTimestamp(): string {
+    const now = Date.now();
+    const next = now > this.lastTs ? now : this.lastTs + 1;
+    this.lastTs = next;
+    return new Date(next).toISOString();
+  }
 
   constructor(options: PostgresStoreOptions | string) {
     const opts: PostgresStoreOptions =
@@ -199,44 +238,45 @@ export class PostgresStore implements UnifiedStore {
   async getAgent(id: string): Promise<AgentDefinition | null> {
     await this.ensureMigrated();
     const result = await this.pool.query(
-      `SELECT definition FROM ${this.t("agents")} WHERE id = $1`,
+      `SELECT definition FROM ${this.t("agents")}
+       WHERE agent_id = $1
+       ORDER BY activated_at DESC NULLS LAST, created_at DESC
+       LIMIT 1`,
       [id]
     );
     if (result.rows.length === 0) return null;
-    return result.rows[0].definition as AgentDefinition;
+    const def = result.rows[0].definition;
+    return (typeof def === "string" ? JSON.parse(def) : def) as AgentDefinition;
   }
 
   async listAgents(): Promise<Array<{ id: string; name: string; description?: string }>> {
     await this.ensureMigrated();
     const result = await this.pool.query(
-      `SELECT id, name, description FROM ${this.t("agents")} ORDER BY name`
+      `SELECT DISTINCT ON (agent_id) agent_id, name, description
+       FROM ${this.t("agents")}
+       ORDER BY agent_id, activated_at DESC NULLS LAST, created_at DESC`
     );
-    return result.rows.map((r: { id: string; name: string; description: string | null }) => ({
-      id: r.id,
-      name: r.name,
-      description: r.description ?? undefined,
-    }));
+    return result.rows
+      .map((r: { agent_id: string; name: string; description: string | null }) => ({
+        id: r.agent_id,
+        name: r.name,
+        description: r.description ?? undefined,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async putAgent(agent: AgentDefinition): Promise<void> {
     await this.ensureMigrated();
-    const now = new Date().toISOString();
-    const agentWithTimestamp = { ...agent, updatedAt: now };
+    const now = this.nextTimestamp();
+    const agentWithTimestamp = { ...agent, createdAt: now, updatedAt: now };
 
     await this.pool.query(
-      `INSERT INTO ${this.t("agents")} (id, name, description, version, definition, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT(id) DO UPDATE SET
-         name = EXCLUDED.name,
-         description = EXCLUDED.description,
-         version = EXCLUDED.version,
-         definition = EXCLUDED.definition,
-         updated_at = EXCLUDED.updated_at`,
+      `INSERT INTO ${this.t("agents")} (agent_id, name, description, definition, created_at, activated_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         agent.id,
         agent.name,
         agent.description ?? null,
-        agent.version ?? null,
         JSON.stringify(agentWithTimestamp),
         now,
         now,
@@ -247,8 +287,48 @@ export class PostgresStore implements UnifiedStore {
   async deleteAgent(id: string): Promise<void> {
     await this.ensureMigrated();
     await this.pool.query(
-      `DELETE FROM ${this.t("agents")} WHERE id = $1`,
+      `DELETE FROM ${this.t("agents")} WHERE agent_id = $1`,
       [id]
+    );
+  }
+
+  // ═══ Agent Versions ═══
+
+  async listAgentVersions(agentId: string): Promise<Array<{ createdAt: string; activatedAt: string | null }>> {
+    await this.ensureMigrated();
+    const result = await this.pool.query(
+      `SELECT created_at, activated_at FROM ${this.t("agents")}
+       WHERE agent_id = $1
+       ORDER BY created_at DESC`,
+      [agentId]
+    );
+    return result.rows.map((r: { created_at: Date | string; activated_at: Date | string | null }) => ({
+      createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+      activatedAt: r.activated_at == null
+        ? null
+        : (r.activated_at instanceof Date ? r.activated_at.toISOString() : String(r.activated_at)),
+    }));
+  }
+
+  async getAgentVersion(agentId: string, createdAt: string): Promise<AgentDefinition | null> {
+    await this.ensureMigrated();
+    const result = await this.pool.query(
+      `SELECT definition FROM ${this.t("agents")}
+       WHERE agent_id = $1 AND created_at = $2`,
+      [agentId, createdAt]
+    );
+    if (result.rows.length === 0) return null;
+    const def = result.rows[0].definition;
+    return (typeof def === "string" ? JSON.parse(def) : def) as AgentDefinition;
+  }
+
+  async activateAgentVersion(agentId: string, createdAt: string): Promise<void> {
+    await this.ensureMigrated();
+    const now = this.nextTimestamp();
+    await this.pool.query(
+      `UPDATE ${this.t("agents")} SET activated_at = $1
+       WHERE agent_id = $2 AND created_at = $3`,
+      [now, agentId, createdAt]
     );
   }
 

@@ -72,6 +72,32 @@ describe("JsonFileStore", () => {
       const updatedAt = new Date(retrieved!.updatedAt!);
       expect(updatedAt.getTime()).toBeGreaterThan(Date.now() - 5000);
     });
+
+    it("creates a version per put and listAgentVersions returns them newest first", async () => {
+      await store.putAgent({ ...agent, name: "v1" });
+      await store.putAgent({ ...agent, name: "v2" });
+      await store.putAgent({ ...agent, name: "v3" });
+      const versions = await store.listAgentVersions("test");
+      expect(versions).toHaveLength(3);
+      expect(versions[0].createdAt > versions[1].createdAt).toBe(true);
+    });
+
+    it("getAgentVersion returns the named version", async () => {
+      await store.putAgent({ ...agent, name: "v1" });
+      const versions = await store.listAgentVersions("test");
+      const def = await store.getAgentVersion("test", versions[0].createdAt);
+      expect(def?.name).toBe("v1");
+    });
+
+    it("activateAgentVersion changes the active version returned by getAgent", async () => {
+      await store.putAgent({ ...agent, name: "v1" });
+      await store.putAgent({ ...agent, name: "v2" });
+      const versions = await store.listAgentVersions("test");
+      // versions[0] is v2 (newest); activate v1 (versions[1])
+      await store.activateAgentVersion("test", versions[1].createdAt);
+      const active = await store.getAgent("test");
+      expect(active?.name).toBe("v1");
+    });
   });
 
   // ═══ SessionStore ═══

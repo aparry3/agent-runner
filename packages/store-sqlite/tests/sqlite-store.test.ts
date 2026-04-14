@@ -79,6 +79,24 @@ describe("SqliteStore", () => {
       expect(result).toBeNull();
     });
 
+    it("creates a version per put and exposes them via listAgentVersions", async () => {
+      await store.putAgent({ ...agent, name: "v1" });
+      await store.putAgent({ ...agent, name: "v2" });
+      await store.putAgent({ ...agent, name: "v3" });
+      const versions = await store.listAgentVersions("test-agent");
+      expect(versions).toHaveLength(3);
+      expect(versions[0].createdAt > versions[1].createdAt).toBe(true);
+    });
+
+    it("activateAgentVersion changes the active version returned by getAgent", async () => {
+      await store.putAgent({ ...agent, name: "v1" });
+      await store.putAgent({ ...agent, name: "v2" });
+      const versions = await store.listAgentVersions("test-agent");
+      await store.activateAgentVersion("test-agent", versions[1].createdAt);
+      const active = await store.getAgent("test-agent");
+      expect(active?.name).toBe("v1");
+    });
+
     it("should handle agent with full definition", async () => {
       const fullAgent: AgentDefinition = {
         ...agent,

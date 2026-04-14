@@ -96,14 +96,15 @@ function highlightYamlLine(line: string) {
   }
 
   const { content, comment } = splitComment(line);
-  const match = content.match(/^(\s*-\s+)?([\w.-]+)(\s*:\s*)(.*)$/);
+  const match = content.match(/^(\s*)(-\s+)?([\w.-]+)(\s*:\s*)(.*)$/);
 
   if (!match) {
     return highlightValue(content) + highlightComment(comment);
   }
 
-  const [, listPrefix = "", key, separator, rawValue] = match;
+  const [, indentation = "", listPrefix = "", key, separator, rawValue] = match;
   return [
+    `<span class="text-zinc-400">${escapeHtml(indentation)}</span>`,
     `<span class="text-zinc-400">${escapeHtml(listPrefix)}</span>`,
     `<span class="text-sky-700">${escapeHtml(key)}</span>`,
     `<span class="text-zinc-400">${escapeHtml(separator)}</span>`,

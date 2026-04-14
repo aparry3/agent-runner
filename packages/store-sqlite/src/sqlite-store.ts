@@ -6,6 +6,8 @@ import type {
   SessionStore,
   ContextStore,
   LogStore,
+  ProviderConfig,
+  ProviderStore,
   UnifiedStore,
   Message,
   SessionSummary,
@@ -85,6 +87,17 @@ const MIGRATIONS = [
   );
   INSERT INTO schema_version (version) VALUES (1);
   `,
+  // v2: Provider configuration
+  `
+  CREATE TABLE IF NOT EXISTS providers (
+    id TEXT PRIMARY KEY,
+    api_key TEXT NOT NULL,
+    base_url TEXT,
+    config TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  UPDATE schema_version SET version = 2;
+  `,
 ];
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -106,6 +119,19 @@ export interface SqliteStoreOptions {
 
 export class SqliteStore implements UnifiedStore {
   private db: DatabaseType;
+  private lastTs = 0;
+
+  /**
+   * Strictly-monotonic ISO timestamp. Two back-to-back calls within the same
+   * millisecond are forced 1ms apart so they don't collide on the composite
+   * (agent_id, created_at) primary key.
+   */
+  private nextTimestamp(): string {
+    const now = Date.now();
+    const next = now > this.lastTs ? now : this.lastTs + 1;
+    this.lastTs = next;
+    return new Date(next).toISOString();
+  }
 
   constructor(options: SqliteStoreOptions | string) {
     const opts: SqliteStoreOptions =
@@ -187,7 +213,7 @@ export class SqliteStore implements UnifiedStore {
   }
 
   async putAgent(agent: AgentDefinition): Promise<void> {
-    const now = new Date().toISOString();
+    const now = this.nextTimestamp();
     const agentWithTimestamp = { ...agent, createdAt: now, updatedAt: now };
 
     this.db
@@ -211,7 +237,7 @@ export class SqliteStore implements UnifiedStore {
 
   // ═══ Agent Versions ═══
 
-  listAgentVersions(agentId: string): Array<{ createdAt: string; activatedAt: string | null }> {
+  async listAgentVersions(agentId: string): Promise<Array<{ createdAt: string; activatedAt: string | null }>> {
     const rows = this.db
       .prepare(
         `SELECT created_at, activated_at FROM agents
@@ -226,7 +252,7 @@ export class SqliteStore implements UnifiedStore {
     }));
   }
 
-  getAgentVersion(agentId: string, createdAt: string): AgentDefinition | null {
+  async getAgentVersion(agentId: string, createdAt: string): Promise<AgentDefinition | null> {
     const row = this.db
       .prepare(
         `SELECT definition FROM agents
@@ -238,8 +264,8 @@ export class SqliteStore implements UnifiedStore {
     return JSON.parse(row.definition) as AgentDefinition;
   }
 
-  activateAgentVersion(agentId: string, createdAt: string): void {
-    const now = new Date().toISOString();
+  async activateAgentVersion(agentId: string, createdAt: string): Promise<void> {
+    const now = this.nextTimestamp();
     this.db
       .prepare(
         `UPDATE agents SET activated_at = ?
@@ -518,6 +544,58 @@ export class SqliteStore implements UnifiedStore {
       error: row.error ?? undefined,
       timestamp: row.timestamp,
     };
+  }
+
+  // ═══ ProviderStore ═══
+
+  async getProvider(id: string): Promise<ProviderConfig | null> {
+    const row = this.db
+      .prepare(
+        "SELECT id, api_key, base_url, config, updated_at FROM providers WHERE id = ?"
+      )
+      .get(id) as
+      | { id: string; api_key: string; base_url: string | null; config: string | null; updated_at: string }
+      | undefined;
+    if (!row) return null;
+    return {
+      id: row.id,
+      apiKey: row.api_key,
+      baseUrl: row.base_url ?? undefined,
+      config: row.config ? (JSON.parse(row.config) as Record<string, unknown>) : undefined,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  async listProviders(): Promise<Array<{ id: string; configured: boolean }>> {
+    const rows = this.db
+      .prepare("SELECT id, api_key FROM providers ORDER BY id")
+      .all() as Array<{ id: string; api_key: string }>;
+    return rows.map((r) => ({ id: r.id, configured: !!r.api_key }));
+  }
+
+  async putProvider(provider: ProviderConfig): Promise<void> {
+    const now = new Date().toISOString();
+    this.db
+      .prepare(
+        `INSERT INTO providers (id, api_key, base_url, config, updated_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           api_key = excluded.api_key,
+           base_url = excluded.base_url,
+           config = excluded.config,
+           updated_at = excluded.updated_at`
+      )
+      .run(
+        provider.id,
+        provider.apiKey,
+        provider.baseUrl ?? null,
+        provider.config ? JSON.stringify(provider.config) : null,
+        now
+      );
+  }
+
+  async deleteProvider(id: string): Promise<void> {
+    this.db.prepare("DELETE FROM providers WHERE id = ?").run(id);
   }
 
   // ═══ Lifecycle ═══

@@ -20,8 +20,14 @@ interface MockRow {
 }
 
 const createMockPool = () => {
-  const agents = new Map<string, MockRow>();
+  // Agents are now keyed by (agent_id, created_at) — model as a list of version
+  // rows sorted by createdAt asc.
+  const agents = new Map<string, MockRow[]>();
   const sessions = new Map<string, MockRow>();
+  // JS Date has ms precision; back-to-back puts collide. Suffix incoming
+  // timestamps with a monotonic counter to mimic Postgres μs precision.
+  let tsCounter = 0;
+  const monotonize = (ts: unknown): string => `${String(ts)}#${String(tsCounter++).padStart(6, "0")}`;
   let messages: MockRow[] = [];
   let contextEntries: MockRow[] = [];
   const logs = new Map<string, MockRow>();
@@ -49,25 +55,77 @@ const createMockPool = () => {
     }
 
     // ─── Agents ───
-    if (trimmed.includes("select definition from") && trimmed.includes("agents")) {
-      const agent = agents.get(params![0] as string);
-      return { rows: agent ? [{ definition: agent.definition }] : [] };
+    const pickActive = (versions: MockRow[]): MockRow | undefined => {
+      if (versions.length === 0) return undefined;
+      const indexed = versions.map((v, i) => ({ v, i }));
+      indexed.sort((a, b) => {
+        const aAct = String(a.v.activated_at ?? "");
+        const bAct = String(b.v.activated_at ?? "");
+        if (aAct !== bAct) return bAct.localeCompare(aAct); // NULLS LAST → empty sorts last
+        const aCre = String(a.v.created_at);
+        const bCre = String(b.v.created_at);
+        if (aCre !== bCre) return bCre.localeCompare(aCre);
+        return b.i - a.i; // tiebreak: last-inserted wins (JS ms ts can collide)
+      });
+      return indexed[0].v;
+    };
+
+    if (trimmed.includes("select definition from") && trimmed.includes("agents") && trimmed.includes("and created_at =")) {
+      // getAgentVersion
+      const versions = agents.get(params![0] as string) ?? [];
+      const found = versions.find((v) => v.created_at === params![1]);
+      return { rows: found ? [{ definition: found.definition }] : [] };
     }
 
-    if (trimmed.includes("select id, name, description from") && trimmed.includes("agents")) {
-      const rows = Array.from(agents.values())
-        .map((a) => ({ id: a.id, name: a.name, description: a.description }))
-        .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    if (trimmed.includes("select definition from") && trimmed.includes("agents")) {
+      // getAgent (active)
+      const versions = agents.get(params![0] as string) ?? [];
+      const active = pickActive(versions);
+      return { rows: active ? [{ definition: active.definition }] : [] };
+    }
+
+    if (trimmed.includes("select created_at, activated_at from") && trimmed.includes("agents")) {
+      // listAgentVersions
+      const versions = agents.get(params![0] as string) ?? [];
+      const rows = [...versions]
+        .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+        .map((v) => ({ created_at: v.created_at, activated_at: v.activated_at }));
       return { rows };
     }
 
+    if (trimmed.includes("select distinct on (agent_id)") && trimmed.includes("agents")) {
+      // listAgents
+      const rows: MockRow[] = [];
+      for (const versions of agents.values()) {
+        const active = pickActive(versions);
+        if (active) {
+          rows.push({ agent_id: active.agent_id, name: active.name, description: active.description });
+        }
+      }
+      rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      return { rows };
+    }
+
+    if (trimmed.includes("update") && trimmed.includes("agents") && trimmed.includes("set activated_at")) {
+      // activateAgentVersion
+      const [activated_at, agent_id, created_at] = params!;
+      const versions = agents.get(agent_id as string) ?? [];
+      const found = versions.find((v) => v.created_at === created_at);
+      if (found) found.activated_at = monotonize(activated_at);
+      return { rows: [] };
+    }
+
     if (trimmed.includes("insert into") && trimmed.includes("agents")) {
-      const [id, name, description, version, definition, created_at, updated_at] = params!;
-      agents.set(id as string, {
-        id, name, description, version,
+      const [agent_id, name, description, definition, created_at, activated_at] = params!;
+      const versions = agents.get(agent_id as string) ?? [];
+      const stamped = monotonize(created_at);
+      versions.push({
+        agent_id, name, description,
         definition: typeof definition === "string" ? JSON.parse(definition) : definition,
-        created_at, updated_at,
+        created_at: stamped,
+        activated_at: activated_at == null ? null : monotonize(activated_at),
       });
+      agents.set(agent_id as string, versions);
       return { rows: [] };
     }
 
@@ -323,6 +381,35 @@ describe("PostgresStore", () => {
       await store.deleteAgent("test-agent");
       const result = await store.getAgent("test-agent");
       expect(result).toBeNull();
+    });
+
+    it("creates a version row on every putAgent and exposes them via listAgentVersions", async () => {
+      await store.putAgent(agent);
+      await store.putAgent({ ...agent, name: "v2" });
+      await store.putAgent({ ...agent, name: "v3" });
+
+      const versions = await store.listAgentVersions("test-agent");
+      expect(versions).toHaveLength(3);
+      // Most recent first
+      expect(versions[0].activatedAt).not.toBeNull();
+    });
+
+    it("getAgentVersion returns the exact version requested", async () => {
+      await store.putAgent({ ...agent, name: "v1" });
+      const versions = await store.listAgentVersions("test-agent");
+      const def = await store.getAgentVersion("test-agent", versions[0].createdAt);
+      expect(def?.name).toBe("v1");
+    });
+
+    it("activateAgentVersion makes the chosen version active", async () => {
+      await store.putAgent({ ...agent, name: "v1" });
+      await store.putAgent({ ...agent, name: "v2" });
+      const versions = await store.listAgentVersions("test-agent");
+      // versions[0] is v2 (most recent); activate the older v1
+      const olderCreatedAt = versions[1].createdAt;
+      await store.activateAgentVersion("test-agent", olderCreatedAt);
+      const active = await store.getAgent("test-agent");
+      expect(active?.name).toBe("v1");
     });
 
     it("should handle agent with full definition", async () => {
