@@ -11,7 +11,7 @@ function makeAgent(overrides: Partial<AgentDefinition> = {}): AgentDefinition {
     id: "test-agent",
     name: "Test Agent",
     systemPrompt: "You are a test agent.",
-    model: { provider: "openai", name: "gpt-4o-mini" },
+    model: { provider: "openai", name: "gpt-5.4-mini" },
     ...overrides,
   };
 }
@@ -23,7 +23,7 @@ function makeInvokeResult(output: string): InvokeResult {
     toolCalls: [],
     usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
     duration: 100,
-    model: "openai/gpt-4o-mini",
+    model: "openai/gpt-5.4-mini",
   };
 }
 
@@ -447,7 +447,7 @@ describe("runner.eval()", () => {
         id: "greeter",
         name: "Greeter",
         systemPrompt: "Greet users warmly.",
-        model: { provider: "openai", name: "gpt-4o-mini" },
+        model: { provider: "openai", name: "gpt-5.4-mini" },
         eval: {
           testCases: [
             {

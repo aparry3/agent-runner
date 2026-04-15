@@ -1,0 +1,124 @@
+import { describe, expect, it } from "vitest";
+import {
+  AgntzClient,
+  AuthenticationError,
+  StreamError,
+  type StreamEvent,
+} from "../src/index.js";
+import {
+  gatedSseResponse,
+  jsonResponse,
+  mockFetch,
+  sseResponse,
+} from "./helpers/mock-fetch.js";
+
+const BASE = "https://worker.example.com";
+
+function makeClient(fetchImpl: typeof fetch): AgntzClient {
+  return new AgntzClient({
+    apiKey: "ar_test_abc",
+    baseUrl: BASE,
+    fetch: fetchImpl,
+  });
+}
+
+describe("AgntzClient.agents.stream", () => {
+  it("yields start then complete events", async () => {
+    const chunks = [
+      'event: run-start\ndata: {"agentId":"a1","kind":"llm"}\n\n',
+      'event: run-complete\ndata: {"output":"hi","state":{"done":true}}\n\n',
+    ];
+    const mock = mockFetch(() => sseResponse(chunks));
+    const client = makeClient(mock.fetch);
+
+    const events: StreamEvent[] = [];
+    for await (const ev of client.agents.stream({ agentId: "a1" })) {
+      events.push(ev);
+    }
+    expect(events).toEqual([
+      { type: "start", agentId: "a1", kind: "llm" },
+      { type: "complete", output: "hi", state: { done: true } },
+    ]);
+
+    const call = mock.calls[0]!;
+    expect(call.url).toBe(`${BASE}/run/stream`);
+    const headers = call.init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer ar_test_abc");
+    expect(headers.Accept).toBe("text/event-stream");
+  });
+
+  it("yields a run-error event then closes (does not throw)", async () => {
+    const chunks = [
+      'event: run-start\ndata: {"agentId":"a1","kind":"llm"}\n\n',
+      'event: run-error\ndata: {"error":"boom"}\n\n',
+    ];
+    const mock = mockFetch(() => sseResponse(chunks));
+    const client = makeClient(mock.fetch);
+
+    const events: StreamEvent[] = [];
+    for await (const ev of client.agents.stream({ agentId: "a1" })) {
+      events.push(ev);
+    }
+    expect(events).toEqual([
+      { type: "start", agentId: "a1", kind: "llm" },
+      { type: "error", error: "boom" },
+    ]);
+  });
+
+  it("closes cleanly when caller breaks out of the iterator", async () => {
+    const chunks = [
+      'event: run-start\ndata: {"agentId":"a1","kind":"llm"}\n\n',
+      'event: run-complete\ndata: {"output":"hi","state":{}}\n\n',
+    ];
+    const mock = mockFetch(() => sseResponse(chunks));
+    const client = makeClient(mock.fetch);
+
+    const events: StreamEvent[] = [];
+    for await (const ev of client.agents.stream({ agentId: "a1" })) {
+      events.push(ev);
+      break;
+    }
+    expect(events).toHaveLength(1);
+    expect(events[0]!.type).toBe("start");
+  });
+
+  it("terminates cleanly when the signal is aborted mid-stream", async () => {
+    const gated = gatedSseResponse([
+      'event: run-start\ndata: {"agentId":"a1","kind":"llm"}\n\n',
+      'event: run-complete\ndata: {"output":"hi","state":{}}\n\n',
+    ]);
+    const mock = mockFetch(() => gated.response);
+    const client = makeClient(mock.fetch);
+    const ctrl = new AbortController();
+
+    const events: StreamEvent[] = [];
+    const stream = client.agents.stream({ agentId: "a1", signal: ctrl.signal });
+    for await (const ev of stream) {
+      events.push(ev);
+      ctrl.abort();
+      gated.release();
+    }
+    expect(events).toHaveLength(1);
+    expect(events[0]!.type).toBe("start");
+  });
+
+  it("throws StreamError when the stream closes before a terminal frame", async () => {
+    const chunks = [
+      'event: run-start\ndata: {"agentId":"a1","kind":"llm"}\n\n',
+    ];
+    const mock = mockFetch(() => sseResponse(chunks));
+    const client = makeClient(mock.fetch);
+
+    const iter = client.agents.stream({ agentId: "a1" });
+    const first = await iter.next();
+    expect(first.value).toMatchObject({ type: "start" });
+    await expect(iter.next()).rejects.toBeInstanceOf(StreamError);
+  });
+
+  it("throws AuthenticationError when the worker rejects before streaming", async () => {
+    const mock = mockFetch(() => jsonResponse(401, { error: "bad key" }));
+    const client = makeClient(mock.fetch);
+    const iter = client.agents.stream({ agentId: "a1" });
+    await expect(iter.next()).rejects.toBeInstanceOf(AuthenticationError);
+  });
+});

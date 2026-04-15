@@ -17,7 +17,7 @@ describe("MemoryStore", () => {
       id: "test",
       name: "Test Agent",
       systemPrompt: "You are a test.",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
     };
 
     it("stores and retrieves an agent", async () => {
@@ -42,7 +42,7 @@ describe("MemoryStore", () => {
         id: "quick",
         name: "Quick",
         systemPrompt: "",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       });
       expect((await ergonomic.getAgent("quick"))?.name).toBe("Quick");
     });
@@ -105,7 +105,7 @@ describe("MemoryStore", () => {
       toolCalls: [],
       usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
       duration: 10,
-      model: "openai/gpt-4o",
+      model: "openai/gpt-5.4",
       timestamp: "2026-01-01T00:00:00Z",
     };
 
@@ -129,7 +129,7 @@ describe("MemoryStore", () => {
         id: "secret",
         name: "A's agent",
         systemPrompt: "",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       });
       expect(await storeB.getAgent("secret")).toBeNull();
       expect(await storeB.listAgents()).toEqual([]);

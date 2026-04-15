@@ -44,7 +44,7 @@ steps:
               previousYaml: string
             model:
               provider: openai
-              name: gpt-4o
+              name: gpt-5.4
               temperature: 0.3
             instruction: |
               You are an expert agent builder for the Agent Runner platform. Your job is to create

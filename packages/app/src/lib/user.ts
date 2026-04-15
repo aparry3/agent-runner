@@ -33,7 +33,7 @@ export async function requireUserContext(): Promise<UserContext> {
     defaults: {
       model: {
         provider: process.env.DEFAULT_MODEL_PROVIDER ?? "openai",
-        name: process.env.DEFAULT_MODEL_NAME ?? "gpt-4o",
+        name: process.env.DEFAULT_MODEL_NAME ?? "gpt-5.4-mini",
       },
     },
   });

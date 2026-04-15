@@ -20,7 +20,7 @@ function mockModelProvider(summaryText = "Summary of the conversation."): ModelP
   };
 }
 
-const modelConfig: ModelConfig = { provider: "openai", name: "gpt-4o-mini" };
+const modelConfig: ModelConfig = { provider: "openai", name: "gpt-5.4-mini" };
 
 describe("summarizeMessages", () => {
   it("returns empty string for empty messages", async () => {

@@ -15,7 +15,7 @@ id: chatbot
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 instruction: "Hello {{userQuery}}"
 `);
     expect(result.valid).toBe(true);
@@ -46,7 +46,7 @@ instruction: "Hello {{userQuery}}"
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 instruction: test
 `);
     expect(result.valid).toBe(false);
@@ -68,7 +68,7 @@ id: test
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 `);
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.message.includes("instruction"))).toBe(true);
@@ -80,7 +80,7 @@ id: test
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 instruction: "Hello {{name"
 `);
     expect(result.valid).toBe(false);
@@ -93,7 +93,7 @@ id: test
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 instruction: "{{#if x}}hello"
 `);
     expect(result.valid).toBe(false);
@@ -106,7 +106,7 @@ id: test
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 instruction: test
 inputSchema:
   name: integer
@@ -121,7 +121,7 @@ id: test
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 instruction: "Hello {{name}}"
 inputSchema:
   name: string
@@ -188,7 +188,7 @@ steps:
       kind: llm
       model:
         provider: openai
-        name: gpt-4o
+        name: gpt-5.4
       instruction: test
 `);
     // The parser will pick one — but validation should catch the conflict
@@ -216,7 +216,7 @@ steps:
       kind: llm
       model:
         provider: openai
-        name: gpt-4o
+        name: gpt-5.4
       instruction: test
 `);
     expect(result.valid).toBe(false);
@@ -236,7 +236,7 @@ id: test
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 instruction: "Hello {{nonExistent}}"
 `);
     // No inputSchema, so only userQuery is available
@@ -250,7 +250,7 @@ id: test
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 instruction: "Hello {{userQuery}}"
 `);
     expect(result.errors).toHaveLength(0);
@@ -262,7 +262,7 @@ id: test
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 instruction: "Hello {{name}}"
 inputSchema:
   name: string
@@ -376,7 +376,7 @@ steps:
         topic: string
       model:
         provider: openai
-        name: gpt-4o
+        name: gpt-5.4
       instruction: "Hello {{topic}}"
     input:
       topic: "{{topic}}"
@@ -400,7 +400,7 @@ steps:
         style: string
       model:
         provider: openai
-        name: gpt-4o
+        name: gpt-5.4
       instruction: "Write {{topic}} in {{style}}"
     input:
       topic: "{{topic}}"
@@ -422,7 +422,7 @@ steps:
         wrongKey: string
       model:
         provider: openai
-        name: gpt-4o
+        name: gpt-5.4
       instruction: "Hello {{wrongKey}}"
 `);
     expect(result.errors.some(e => e.message.includes("does not provide key 'wrongKey'"))).toBe(true);
@@ -484,7 +484,7 @@ id: test
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 instruction: test
 tools:
   - kind: mcp
@@ -502,7 +502,7 @@ id: test
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 instruction: test
 tools:
   - kind: local
@@ -517,7 +517,7 @@ id: test
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 instruction: test
 tools:
   - kind: mcp

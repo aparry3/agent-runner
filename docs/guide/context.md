@@ -44,7 +44,7 @@ Set `contextWrite: true` on the agent definition:
 const researcher = defineAgent({
   id: "researcher",
   systemPrompt: "Research topics thoroughly...",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   contextWrite: true,  // Output auto-writes to context
 });
 ```

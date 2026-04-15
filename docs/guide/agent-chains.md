@@ -11,7 +11,7 @@ runner.registerAgent(defineAgent({
   id: "researcher",
   name: "Researcher",
   systemPrompt: "Research topics thoroughly...",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   tools: [{ type: "mcp", server: "web-search" }],
 }));
 
@@ -19,7 +19,7 @@ runner.registerAgent(defineAgent({
   id: "writer",
   name: "Writer",
   systemPrompt: "Write articles using available research...",
-  model: { provider: "anthropic", name: "claude-sonnet-4-20250514" },
+  model: { provider: "anthropic", name: "claude-sonnet-4-6" },
   tools: [
     { type: "agent", agentId: "researcher" },  // Can call researcher
   ],

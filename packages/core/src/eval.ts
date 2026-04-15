@@ -502,7 +502,7 @@ Respond with ONLY a JSON object:
     const result = await options.modelProvider.generateText({
       model: {
         provider: "openai",
-        name: evalConfig.evalModel ?? "gpt-4o-mini",
+        name: evalConfig.evalModel ?? "gpt-5.4-mini",
       },
       messages: [{ role: "user", content: judgePrompt }],
     });
@@ -579,7 +579,7 @@ Respond with ONLY a JSON object:
     const result = await options.modelProvider.generateText({
       model: {
         provider: "openai",
-        name: evalConfig.evalModel ?? "gpt-4o-mini",
+        name: evalConfig.evalModel ?? "gpt-5.4-mini",
       },
       messages: [{ role: "user", content: prompt }],
     });

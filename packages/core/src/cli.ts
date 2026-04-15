@@ -103,17 +103,17 @@ interface InitOptions {
 
 const PROVIDERS: Record<string, { models: string[]; envVar: string; displayName: string }> = {
   openai: {
-    models: ["gpt-4o", "gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1-nano", "o4-mini"],
+    models: ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4-pro"],
     envVar: "OPENAI_API_KEY",
     displayName: "OpenAI",
   },
   anthropic: {
-    models: ["claude-sonnet-4-20250514", "claude-haiku-4-20250414", "claude-opus-4-20250514"],
+    models: ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5"],
     envVar: "ANTHROPIC_API_KEY",
     displayName: "Anthropic",
   },
   google: {
-    models: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+    models: ["gemini-3.1-pro-preview", "gemini-3-flash", "gemini-3.1-flash-lite-preview"],
     envVar: "GOOGLE_GENERATIVE_AI_API_KEY",
     displayName: "Google",
   },
@@ -152,7 +152,7 @@ async function cmdInit() {
     options = {
       projectName: dirName,
       provider: "openai",
-      model: "gpt-4o-mini",
+      model: "gpt-5.4-mini",
       envVar: "OPENAI_API_KEY",
       template: "minimal",
     };

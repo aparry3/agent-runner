@@ -32,7 +32,7 @@ runner.registerAgent(defineAgent({
   id: "greeter",
   name: "Greeter",
   systemPrompt: "You are a friendly greeter.",
-  model: { provider: "openai", name: "gpt-4o-mini" },
+  model: { provider: "openai", name: "gpt-5.4-mini" },
 }));
 
 const result = await runner.invoke("greeter", "Hello!");

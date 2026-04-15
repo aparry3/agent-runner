@@ -20,7 +20,7 @@ runner.registerAgent(defineAgent({
 runner.registerAgent(defineAgent({
   ...templates.fitnessCoach,
   id: "coach",
-  model: { provider: "anthropic", name: "claude-sonnet-4-20250514" },
+  model: { provider: "anthropic", name: "claude-sonnet-4-6" },
   tools: [
     { type: "inline", name: "get_workout" },
     { type: "inline", name: "log_workout" },
@@ -36,7 +36,7 @@ A friendly conversational assistant. Good starting point for general-purpose bot
 
 | Field | Value |
 |-------|-------|
-| Model | `openai/gpt-4o-mini` |
+| Model | `openai/gpt-5.4-mini` |
 | Temperature | Default |
 | Context Write | No |
 
@@ -50,7 +50,7 @@ Reviews code for bugs, style issues, and improvements. References line numbers, 
 
 | Field | Value |
 |-------|-------|
-| Model | `anthropic/claude-sonnet-4-20250514` |
+| Model | `anthropic/claude-sonnet-4-6` |
 | Temperature | Default |
 | Context Write | No |
 
@@ -64,7 +64,7 @@ Distills long content into structured summaries with key points, details, and a 
 
 | Field | Value |
 |-------|-------|
-| Model | `openai/gpt-4o-mini` |
+| Model | `openai/gpt-5.4-mini` |
 | Temperature | Default |
 | Context Write | No |
 
@@ -78,7 +78,7 @@ Extracts structured data from unstructured text. Uses `temperature: 0` for preci
 
 | Field | Value |
 |-------|-------|
-| Model | `openai/gpt-4o-mini` |
+| Model | `openai/gpt-5.4-mini` |
 | Temperature | 0 |
 | Context Write | No |
 
@@ -108,7 +108,7 @@ Generates blog posts, stories, marketing copy, and emails. Higher temperature (0
 
 | Field | Value |
 |-------|-------|
-| Model | `anthropic/claude-sonnet-4-20250514` |
+| Model | `anthropic/claude-sonnet-4-6` |
 | Temperature | 0.8 |
 | Context Write | No |
 
@@ -120,7 +120,7 @@ Handles customer inquiries with empathy. Designed to use tools for data lookup r
 
 | Field | Value |
 |-------|-------|
-| Model | `openai/gpt-4o` |
+| Model | `openai/gpt-5.4` |
 | Temperature | Default |
 | Context Write | No |
 
@@ -134,7 +134,7 @@ The **gymtext pattern** — AI fitness coaching with context-aware personalizati
 
 | Field | Value |
 |-------|-------|
-| Model | `anthropic/claude-sonnet-4-20250514` |
+| Model | `anthropic/claude-sonnet-4-6` |
 | Temperature | Default |
 | Context Write | **Yes** |
 
@@ -150,7 +150,7 @@ Thorough information gathering with source attribution. Writes findings to conte
 
 | Field | Value |
 |-------|-------|
-| Model | `openai/gpt-4o` |
+| Model | `openai/gpt-5.4` |
 | Temperature | Default |
 | Context Write | **Yes** |
 
@@ -171,7 +171,7 @@ type AgentTemplate = Omit<AgentDefinition, "id"> & { id?: string };
 export const myTemplate: AgentTemplate = {
   name: "My Custom Agent",
   systemPrompt: "...",
-  model: { provider: "anthropic", name: "claude-sonnet-4-20250514" },
+  model: { provider: "anthropic", name: "claude-sonnet-4-6" },
   tools: [{ type: "inline", name: "my_tool" }],
   contextWrite: true,
 };

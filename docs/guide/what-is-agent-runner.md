@@ -42,7 +42,7 @@ An agent definition is a plain JSON object:
   id: "support",
   name: "Support Agent",
   systemPrompt: "You are a helpful support agent...",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   tools: [{ type: "inline", name: "lookup_order" }],
 }
 ```

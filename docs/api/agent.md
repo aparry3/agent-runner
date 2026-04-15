@@ -17,7 +17,7 @@ defineAgent({
   id: "support",
   name: "Support Agent",
   systemPrompt: "You are a helpful support agent...",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   // All other fields are optional
 });
 ```

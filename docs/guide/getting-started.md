@@ -43,7 +43,7 @@ runner.registerAgent(defineAgent({
   id: "greeter",
   name: "Greeter",
   systemPrompt: "You are a friendly greeter. Keep responses under 2 sentences.",
-  model: { provider: "openai", name: "gpt-4o-mini" },
+  model: { provider: "openai", name: "gpt-5.4-mini" },
 }));
 
 const result = await runner.invoke("greeter", "Hello!");
@@ -77,7 +77,7 @@ runner.registerAgent(defineAgent({
   id: "assistant",
   name: "Weather Assistant",
   systemPrompt: "Help users with weather questions. Use the get_weather tool.",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   tools: [{ type: "inline", name: "get_weather" }],
 }));
 

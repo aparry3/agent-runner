@@ -78,7 +78,7 @@ describe("Telemetry class", () => {
     const span = telemetry.startInvoke({
       agentId: "test",
       invocationId: "inv_1",
-      model: "openai/gpt-4o",
+      model: "openai/gpt-5.4",
     });
 
     // These should all be no-ops (no errors)
@@ -119,13 +119,13 @@ describe("Telemetry class", () => {
     const invokeSpan = telemetry.startInvoke({
       agentId: "test",
       invocationId: "inv_1",
-      model: "openai/gpt-4o",
+      model: "openai/gpt-5.4",
     });
 
-    const modelSpan = invokeSpan.modelCall({ model: "openai/gpt-4o", step: 1 });
+    const modelSpan = invokeSpan.modelCall({ model: "openai/gpt-5.4", step: 1 });
     expect(tracer.spans).toHaveLength(2);
     expect(tracer.spans[1]._name).toBe("agent.model.call");
-    expect(tracer.spans[1]._attrs["agent.model"]).toBe("openai/gpt-4o");
+    expect(tracer.spans[1]._attrs["agent.model"]).toBe("openai/gpt-5.4");
     expect(tracer.spans[1]._attrs["agent.step"]).toBe(1);
 
     modelSpan.setResult({
@@ -147,7 +147,7 @@ describe("Telemetry class", () => {
     const invokeSpan = telemetry.startInvoke({
       agentId: "test",
       invocationId: "inv_1",
-      model: "openai/gpt-4o",
+      model: "openai/gpt-5.4",
     });
 
     const toolSpan = invokeSpan.toolCall({ toolName: "lookup_order", toolCallId: "tc_1" });
@@ -175,7 +175,7 @@ describe("Telemetry class", () => {
     const invokeSpan = telemetry.startInvoke({
       agentId: "test",
       invocationId: "inv_1",
-      model: "openai/gpt-4o",
+      model: "openai/gpt-5.4",
     });
 
     const error = new Error("Model API error");
@@ -194,7 +194,7 @@ describe("Telemetry class", () => {
     const span = telemetry.startInvoke({
       agentId: "test",
       invocationId: "inv_1",
-      model: "openai/gpt-4o",
+      model: "openai/gpt-5.4",
       input: "sensitive user input",
     });
 
@@ -218,7 +218,7 @@ describe("Telemetry class", () => {
     const span = telemetry.startInvoke({
       agentId: "test",
       invocationId: "inv_1",
-      model: "openai/gpt-4o",
+      model: "openai/gpt-5.4",
       input: "user input",
     });
 
@@ -241,7 +241,7 @@ describe("Telemetry class", () => {
     const invokeSpan = telemetry.startInvoke({
       agentId: "test",
       invocationId: "inv_1",
-      model: "openai/gpt-4o",
+      model: "openai/gpt-5.4",
     });
 
     const toolSpan = invokeSpan.toolCall({ toolName: "my_tool", toolCallId: "tc_1" });
@@ -267,7 +267,7 @@ describe("Telemetry class", () => {
     telemetry.startInvoke({
       agentId: "test",
       invocationId: "inv_1",
-      model: "openai/gpt-4o",
+      model: "openai/gpt-5.4",
     });
 
     expect(tracer.spans[0]._attrs["service.name"]).toBe("my-app");
@@ -293,7 +293,7 @@ describe("Runner with telemetry", () => {
       id: "greeter",
       name: "Greeter",
       systemPrompt: "You are a greeter.",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
     }));
 
     const result = await runner.invoke("greeter", "Hello!");
@@ -306,7 +306,7 @@ describe("Runner with telemetry", () => {
     const invokeSpan = tracer.spans.find(s => s._name === "agent.invoke");
     expect(invokeSpan).toBeDefined();
     expect(invokeSpan!._attrs["agent.id"]).toBe("greeter");
-    expect(invokeSpan!._attrs["agent.model"]).toBe("openai/gpt-4o");
+    expect(invokeSpan!._attrs["agent.model"]).toBe("openai/gpt-5.4");
     expect(invokeSpan!._attrs["agent.usage.total_tokens"]).toBe(15);
     expect(invokeSpan!._attrs["agent.step_count"]).toBe(1);
     expect(invokeSpan!._status.code).toBe(1); // OK
@@ -348,7 +348,7 @@ describe("Runner with telemetry", () => {
       id: "assistant",
       name: "Assistant",
       systemPrompt: "You are helpful.",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
       tools: [{ type: "inline", name: "get_time" }],
     }));
 
@@ -390,7 +390,7 @@ describe("Runner with telemetry", () => {
       id: "failing",
       name: "Failing",
       systemPrompt: "You fail.",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
     }));
 
     await expect(runner.invoke("failing", "Hello"))
@@ -418,7 +418,7 @@ describe("Runner with telemetry", () => {
       id: "greeter",
       name: "Greeter",
       systemPrompt: "You are a greeter.",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
     }));
 
     const result = await runner.invoke("greeter", "Hello!");
@@ -438,7 +438,7 @@ describe("Runner with telemetry", () => {
       id: "agent",
       name: "Agent",
       systemPrompt: "You are an agent.",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
     }));
 
     await runner.invoke("agent", "Hello", {

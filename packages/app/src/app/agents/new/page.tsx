@@ -32,7 +32,7 @@ kind: llm
 
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 
 instruction: |
   You are a helpful assistant.

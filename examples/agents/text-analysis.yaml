@@ -17,7 +17,7 @@ branches:
       kind: llm
       model:
         provider: openai
-        name: gpt-4o
+        name: gpt-5.4-mini
         temperature: 0
       instruction: |
         Extract all named entities (people, places, organizations, dates) from this text.
@@ -35,7 +35,7 @@ branches:
       kind: llm
       model:
         provider: openai
-        name: gpt-4o
+        name: gpt-5.4-mini
         temperature: 0
       instruction: |
         Classify the primary intent of this text.

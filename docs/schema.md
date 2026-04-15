@@ -101,7 +101,7 @@ inputSchema:
 
 model:
   provider: openai                   # openai | anthropic | google | mistral
-  name: gpt-4o
+  name: gpt-5.4
   temperature: 0.7                   # optional
   maxTokens: 4096                    # optional
   topP: 1.0                         # optional
@@ -150,7 +150,7 @@ kind: llm
 
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 
 instruction: |
   You are a helpful assistant. Answer the user's question: {{userQuery}}
@@ -209,7 +209,7 @@ steps:
       kind: llm
       model:
         provider: openai
-        name: gpt-4o
+        name: gpt-5.4
       instruction: |
         Summarize this research: {{researcher}}
       outputSchema:
@@ -293,7 +293,7 @@ branches:
       kind: llm
       model:
         provider: anthropic
-        name: claude-sonnet-4-20250514
+        name: claude-sonnet-4-6
       instruction: "Classify the intent of: {{text}}"
       outputSchema:
         intent: string
@@ -331,7 +331,7 @@ Agents compose by nesting. A pipeline step uses `ref` to reference an existing a
     kind: llm
     model:
       provider: openai
-      name: gpt-4o
+      name: gpt-5.4
     instruction: "..."
   input:
     paramX: "{{stateVar}}"

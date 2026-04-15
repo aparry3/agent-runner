@@ -16,7 +16,7 @@ describe("execute - LLM agent", () => {
     const manifest: LLMAgentManifest = {
       id: "test",
       kind: "llm",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
       instruction: "Answer: {{userQuery}}",
     };
 
@@ -65,13 +65,13 @@ describe("execute - Sequential agent", () => {
     const agentA: LLMAgentManifest = {
       id: "agent-a",
       kind: "llm",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
       instruction: "Do A",
     };
     const agentB: LLMAgentManifest = {
       id: "agent-b",
       kind: "llm",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
       instruction: "Do B with {{data}}",
     };
 
@@ -109,7 +109,7 @@ describe("execute - Sequential agent", () => {
     const agentA: LLMAgentManifest = {
       id: "agent-a",
       kind: "llm",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
       instruction: "Do A",
     };
 
@@ -137,7 +137,7 @@ describe("execute - Sequential agent", () => {
     const agentA: LLMAgentManifest = {
       id: "agent-a",
       kind: "llm",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
       instruction: "Do A",
     };
 
@@ -164,13 +164,13 @@ describe("execute - Sequential with loop", () => {
     const writer: LLMAgentManifest = {
       id: "writer",
       kind: "llm",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
       instruction: "Write",
     };
     const reviewer: LLMAgentManifest = {
       id: "reviewer",
       kind: "llm",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
       instruction: "Review",
       outputSchema: { approved: "boolean", feedback: "string" },
     };
@@ -208,7 +208,7 @@ describe("execute - Sequential with loop", () => {
     const agent: LLMAgentManifest = {
       id: "agent",
       kind: "llm",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
       instruction: "Do",
     };
 
@@ -235,13 +235,13 @@ describe("execute - Parallel agent", () => {
     const agentA: LLMAgentManifest = {
       id: "agent-a",
       kind: "llm",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
       instruction: "A",
     };
     const agentB: LLMAgentManifest = {
       id: "agent-b",
       kind: "llm",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
       instruction: "B",
     };
 
@@ -277,7 +277,7 @@ describe("execute - Parallel agent", () => {
     const agentA: LLMAgentManifest = {
       id: "agent-a",
       kind: "llm",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
       instruction: "A",
     };
 

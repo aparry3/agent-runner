@@ -7,14 +7,14 @@ describe("defineAgent", () => {
       id: "test-agent",
       name: "Test Agent",
       systemPrompt: "You are a test agent.",
-      model: { provider: "openai", name: "gpt-4o-mini" },
+      model: { provider: "openai", name: "gpt-5.4-mini" },
     });
 
     expect(agent.id).toBe("test-agent");
     expect(agent.name).toBe("Test Agent");
     expect(agent.systemPrompt).toBe("You are a test agent.");
     expect(agent.model.provider).toBe("openai");
-    expect(agent.model.name).toBe("gpt-4o-mini");
+    expect(agent.model.name).toBe("gpt-5.4-mini");
     expect(agent.createdAt).toBeDefined();
     expect(agent.updatedAt).toBeDefined();
   });
@@ -25,7 +25,7 @@ describe("defineAgent", () => {
         id: "",
         name: "Test",
         systemPrompt: "test",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       })
     ).toThrow("requires an 'id'");
   });
@@ -36,7 +36,7 @@ describe("defineAgent", () => {
         id: "test",
         name: "",
         systemPrompt: "test",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       })
     ).toThrow("requires a 'name'");
   });
@@ -47,7 +47,7 @@ describe("defineAgent", () => {
         id: "test",
         name: "Test",
         systemPrompt: "",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       })
     ).toThrow("requires a 'systemPrompt'");
   });
@@ -58,7 +58,7 @@ describe("defineAgent", () => {
         id: "test",
         name: "Test",
         systemPrompt: "test",
-        model: { provider: "", name: "gpt-4o" },
+        model: { provider: "", name: "gpt-5.4" },
       })
     ).toThrow("requires both 'provider' and 'name'");
   });
@@ -70,7 +70,7 @@ describe("defineAgent", () => {
       description: "A fully configured agent",
       version: "1.0.0",
       systemPrompt: "Be helpful.",
-      model: { provider: "anthropic", name: "claude-sonnet-4-20250514", temperature: 0.5 },
+      model: { provider: "anthropic", name: "claude-sonnet-4-6", temperature: 0.5 },
       tools: [{ type: "inline", name: "my-tool" }],
       contextWrite: true,
       tags: ["test", "demo"],

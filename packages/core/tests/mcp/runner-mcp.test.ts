@@ -102,7 +102,7 @@ describe("Runner MCP Integration", () => {
         id: "issue-checker",
         name: "Issue Checker",
         systemPrompt: "Check GitHub issues",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
         tools: [{ type: "mcp", server: "github" }],
       })
     );
@@ -157,7 +157,7 @@ describe("Runner MCP Integration", () => {
         id: "issue-checker",
         name: "Issue Checker",
         systemPrompt: "Check GitHub issues. Use tools to list issues.",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
         tools: [{ type: "mcp", server: "github" }],
       })
     );
@@ -188,7 +188,7 @@ describe("Runner MCP Integration", () => {
         id: "reader",
         name: "Reader",
         systemPrompt: "Read issues only",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
         tools: [
           { type: "mcp", server: "github", tools: ["get_issues"] },
         ],
@@ -254,7 +254,7 @@ describe("Runner MCP Integration", () => {
         id: "hybrid",
         name: "Hybrid Agent",
         systemPrompt: "Use both local and MCP tools",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
         tools: [
           { type: "inline", name: "local_tool" },
           { type: "mcp", server: "github", tools: ["get_issues"] },

@@ -28,7 +28,7 @@ async function handleMessage(userId: string, message: string, sessionId: string)
 
   // Manual tool execution loop
   let response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-4-6",
     system: systemPrompt,
     messages: history,
     tools,
@@ -113,7 +113,7 @@ export const chatAgent = defineAgent({
   id: "chat",
   name: "GymText Coach",
   systemPrompt: `You are GymText, an AI personal trainer...`,
-  model: { provider: "anthropic", name: "claude-sonnet-4-20250514" },
+  model: { provider: "anthropic", name: "claude-sonnet-4-6" },
   tools: [
     { type: "inline", name: "get_workout" },
     { type: "inline", name: "log_workout" },
@@ -124,7 +124,7 @@ export const workoutGenerator = defineAgent({
   id: "workout-generator",
   name: "Workout Generator",
   systemPrompt: `Generate personalized workouts based on user context...`,
-  model: { provider: "anthropic", name: "claude-sonnet-4-20250514" },
+  model: { provider: "anthropic", name: "claude-sonnet-4-6" },
 });
 ```
 

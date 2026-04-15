@@ -73,7 +73,7 @@ describe("Streaming", () => {
         id: "greeter",
         name: "Greeter",
         systemPrompt: "Greet people.",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       })
     );
 
@@ -107,7 +107,7 @@ describe("Streaming", () => {
         id: "test",
         name: "Test",
         systemPrompt: "test",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       })
     );
 
@@ -119,7 +119,7 @@ describe("Streaming", () => {
     // Result should be available
     const result = await stream.result;
     expect(result.output).toBe("Test output");
-    expect(result.model).toBe("openai/gpt-4o");
+    expect(result.model).toBe("openai/gpt-5.4");
   });
 
   it("streams with tool calls", async () => {
@@ -151,7 +151,7 @@ describe("Streaming", () => {
         id: "time",
         name: "Time",
         systemPrompt: "Tell time.",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
         tools: [{ type: "inline", name: "get_time" }],
       })
     );
@@ -191,7 +191,7 @@ describe("Streaming", () => {
         id: "basic",
         name: "Basic",
         systemPrompt: "test",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       })
     );
 

@@ -28,7 +28,7 @@ runner.registerAgent(defineAgent({
   id: "poet",
   name: "Haiku Poet",
   systemPrompt: "You write haikus. Only respond with haikus (5-7-5 syllable format). No other text.",
-  model: { provider: "openai", name: "gpt-4o-mini" },
+  model: { provider: "openai", name: "gpt-5.4-mini" },
 }));
 
 const result = await runner.invoke("poet", "Write about TypeScript");
@@ -64,7 +64,7 @@ runner.registerAgent(defineAgent({
   id: "poet",
   name: "Haiku Poet",
   systemPrompt: "You write haikus. Only respond with haikus.",
-  model: { provider: "openai", name: "gpt-4o-mini" },
+  model: { provider: "openai", name: "gpt-5.4-mini" },
 }));
 ```
 

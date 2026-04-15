@@ -131,7 +131,7 @@ import { createRunner, defineAgent, JsonFileStore } from "agent-runner";
 const runner = createRunner({
   store: new JsonFileStore("./data"),
   defaults: {
-    model: { provider: "openai", name: "gpt-4o-mini" },
+    model: { provider: "openai", name: "gpt-5.4-mini" },
   },
 });
 
@@ -139,7 +139,7 @@ runner.registerAgent(defineAgent({
   id: "helper",
   name: "Helper",
   systemPrompt: "You are helpful.",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
 }));
 
 const result = await runner.invoke("helper", "What is 2+2?");

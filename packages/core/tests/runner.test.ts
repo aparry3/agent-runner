@@ -51,7 +51,7 @@ describe("Runner", () => {
         id: "greeter",
         name: "Greeter",
         systemPrompt: "You are a friendly greeter.",
-        model: { provider: "openai", name: "gpt-4o-mini" },
+        model: { provider: "openai", name: "gpt-5.4-mini" },
       })
     );
 
@@ -59,7 +59,7 @@ describe("Runner", () => {
 
     expect(result.output).toBe("Hello from the agent!");
     expect(result.invocationId).toBeDefined();
-    expect(result.model).toBe("openai/gpt-4o-mini");
+    expect(result.model).toBe("openai/gpt-5.4-mini");
     expect(result.usage.totalTokens).toBe(30);
     expect(result.duration).toBeGreaterThanOrEqual(0);
 
@@ -95,7 +95,7 @@ describe("Runner", () => {
         id: "chat",
         name: "Chat",
         systemPrompt: "You are a chat agent.",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       })
     );
 
@@ -147,7 +147,7 @@ describe("Runner", () => {
         id: "time-agent",
         name: "Time Agent",
         systemPrompt: "You tell people the time.",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
         tools: [{ type: "inline", name: "get_time" }],
       })
     );
@@ -197,7 +197,7 @@ describe("Runner", () => {
         id: "ctx-agent",
         name: "Ctx Agent",
         systemPrompt: "test",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
         tools: [{ type: "inline", name: "ctx_tool" }],
       })
     );
@@ -240,7 +240,7 @@ describe("Runner", () => {
         id: "writer",
         name: "Writer",
         systemPrompt: "Write articles.",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       })
     );
 
@@ -290,7 +290,7 @@ describe("Runner", () => {
         name: "Researcher",
         description: "Researches topics thoroughly",
         systemPrompt: "You research topics and return concise findings.",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       })
     );
 
@@ -299,7 +299,7 @@ describe("Runner", () => {
         id: "writer",
         name: "Writer",
         systemPrompt: "Write articles. Use the researcher to gather facts first.",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
         tools: [{ type: "agent", agentId: "researcher" }],
       })
     );
@@ -328,7 +328,7 @@ describe("Runner", () => {
         name: "Helper",
         description: "A helpful assistant",
         systemPrompt: "Help people.",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       })
     );
 
@@ -337,7 +337,7 @@ describe("Runner", () => {
         id: "main",
         name: "Main",
         systemPrompt: "You can delegate to the helper.",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
         tools: [{ type: "agent", agentId: "helper" }],
       })
     );
@@ -364,7 +364,7 @@ describe("Runner", () => {
         id: "analyzer",
         name: "Sentiment Analyzer",
         systemPrompt: "Analyze the sentiment of the input text.",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
         outputSchema: {
           type: "object",
           properties: {
@@ -403,7 +403,7 @@ describe("Runner", () => {
         id: "basic",
         name: "Basic",
         systemPrompt: "Be basic.",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       })
     );
 
@@ -421,7 +421,7 @@ describe("Runner", () => {
         id: "researcher",
         name: "Researcher",
         systemPrompt: "Research topics.",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
         contextWrite: true,
       })
     );

@@ -53,7 +53,7 @@ WORKER_INTERNAL_SECRET=...        # required
 STORE=postgres                    # or memory (dev only)
 DATABASE_URL=postgres://...       # when STORE=postgres
 DEFAULT_MODEL_PROVIDER=openai
-DEFAULT_MODEL_NAME=gpt-4o
+DEFAULT_MODEL_NAME=gpt-5.4-mini
 BUILT_IN_AGENTS_DIR=...           # optional: extra YAMLs to seed per workspace
 ```
 

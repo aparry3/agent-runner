@@ -45,7 +45,7 @@ runner.registerAgent(defineAgent({
   id: "greeter",
   name: "Greeter",
   systemPrompt: "You are a friendly greeter. Keep responses under 2 sentences.",
-  model: { provider: "openai", name: "gpt-4o-mini" },
+  model: { provider: "openai", name: "gpt-5.4-mini" },
 }));
 
 const result = await runner.invoke("greeter", "Hello!");
@@ -68,7 +68,7 @@ const agent = defineAgent({
   description: "Writes concise, engaging copy",
   version: "1.0.0",
   systemPrompt: "You write concise, engaging copy.",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   tags: ["content", "writing"],
 });
 ```
@@ -96,7 +96,7 @@ runner.registerAgent(defineAgent({
   id: "support",
   name: "Support Agent",
   systemPrompt: "Help customers with their orders. Use tools to look up order info.",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   tools: [{ type: "inline", name: "lookup_order" }],
 }));
 
@@ -150,14 +150,14 @@ runner.registerAgent(defineAgent({
   id: "researcher",
   name: "Researcher",
   systemPrompt: "Research topics and return concise findings.",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
 }));
 
 runner.registerAgent(defineAgent({
   id: "writer",
   name: "Writer",
   systemPrompt: "Write articles. Delegate research to the researcher.",
-  model: { provider: "anthropic", name: "claude-sonnet-4-20250514" },
+  model: { provider: "anthropic", name: "claude-sonnet-4-6" },
   tools: [{ type: "agent", agentId: "researcher" }],
 }));
 
@@ -209,7 +209,7 @@ runner.registerAgent(defineAgent({
   id: "analyzer",
   name: "Sentiment Analyzer",
   systemPrompt: "Analyze the sentiment of input text.",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   outputSchema: {
     type: "object",
     properties: {
@@ -243,7 +243,7 @@ runner.registerAgent(defineAgent({
   id: "code-reviewer",
   name: "Code Reviewer",
   systemPrompt: "Review code from GitHub PRs...",
-  model: { provider: "anthropic", name: "claude-sonnet-4-20250514" },
+  model: { provider: "anthropic", name: "claude-sonnet-4-6" },
   tools: [{ type: "mcp", server: "github", tools: ["get_file_contents"] }],
 }));
 ```
@@ -264,7 +264,7 @@ runner.registerAgent(defineAgent({
   id: "classifier",
   name: "Classifier",
   systemPrompt: "Classify support tickets...",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   eval: {
     rubric: "Must correctly classify the ticket category",
     testCases: [
@@ -361,7 +361,7 @@ const runner = createRunner({
     strategy: "latest",                   // "latest" | "summary" | "all"
   },
   defaults: {                             // Default model config
-    model: { provider: "openai", name: "gpt-4o-mini" },
+    model: { provider: "openai", name: "gpt-5.4-mini" },
     temperature: 0.7,
     maxTokens: 4096,
   },
@@ -384,7 +384,7 @@ const agent = defineAgent({
   id: "my-agent",
   name: "My Agent",
   systemPrompt: "...",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   // ... all fields from AgentDefinition
 });
 ```
@@ -481,9 +481,9 @@ agent-runner uses the [Vercel AI SDK](https://sdk.vercel.ai/) internally — cal
 
 ```typescript
 defineAgent({
-  model: { provider: "openai", name: "gpt-4o" },         // OPENAI_API_KEY
-  model: { provider: "anthropic", name: "claude-sonnet-4-20250514" },  // ANTHROPIC_API_KEY
-  model: { provider: "google", name: "gemini-2.0-flash" },     // GOOGLE_GENERATIVE_AI_API_KEY
+  model: { provider: "openai", name: "gpt-5.4" },         // OPENAI_API_KEY
+  model: { provider: "anthropic", name: "claude-sonnet-4-6" },  // ANTHROPIC_API_KEY
+  model: { provider: "google", name: "gemini-3-flash" },     // GOOGLE_GENERATIVE_AI_API_KEY
 });
 ```
 

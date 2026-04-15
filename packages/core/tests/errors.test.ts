@@ -70,7 +70,7 @@ describe("Typed Errors", () => {
         id: "test",
         name: "Test",
         systemPrompt: "test",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       })
     );
 

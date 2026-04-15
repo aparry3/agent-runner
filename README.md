@@ -11,7 +11,7 @@ runner.registerAgent(defineAgent({
   id: "greeter",
   name: "Greeter",
   systemPrompt: "You are a friendly greeter. Keep responses under 2 sentences.",
-  model: { provider: "openai", name: "gpt-4o-mini" },
+  model: { provider: "openai", name: "gpt-5.4-mini" },
 }));
 
 const result = await runner.invoke("greeter", "Hello!");
@@ -56,7 +56,7 @@ runner.registerAgent(defineAgent({
   id: "writer",
   name: "Writer",
   systemPrompt: "You write concise, engaging copy.",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
 }));
 
 const { output } = await runner.invoke("writer", "Write a tagline for a coffee shop");
@@ -85,7 +85,7 @@ runner.registerAgent(defineAgent({
   id: "support",
   name: "Support Agent",
   systemPrompt: "You help customers with their orders. Use tools to look up order info.",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   tools: [{ type: "inline", name: "lookup_order" }],
 }));
 
@@ -132,14 +132,14 @@ runner.registerAgent(defineAgent({
   id: "researcher",
   name: "Researcher",
   systemPrompt: "Research topics and return concise findings.",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
 }));
 
 runner.registerAgent(defineAgent({
   id: "writer",
   name: "Writer",
   systemPrompt: "Write articles. Delegate research to the researcher.",
-  model: { provider: "anthropic", name: "claude-sonnet-4-20250514" },
+  model: { provider: "anthropic", name: "claude-sonnet-4-6" },
   tools: [{ type: "agent", agentId: "researcher" }],
 }));
 
@@ -156,7 +156,7 @@ runner.registerAgent(defineAgent({
   id: "researcher",
   name: "Researcher",
   systemPrompt: "Research topics thoroughly.",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   contextWrite: true, // Output auto-writes to context
 }));
 
@@ -201,7 +201,7 @@ runner.registerAgent(defineAgent({
   id: "analyzer",
   name: "Sentiment Analyzer",
   systemPrompt: "Analyze the sentiment of input text.",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   outputSchema: {
     type: "object",
     properties: {
@@ -277,11 +277,11 @@ agent-runner uses the `ai` package internally — a client library that calls pr
 ```typescript
 // Set provider in agent definition
 defineAgent({
-  model: { provider: "openai", name: "gpt-4o" },      // needs OPENAI_API_KEY
+  model: { provider: "openai", name: "gpt-5.4" },      // needs OPENAI_API_KEY
   // or
-  model: { provider: "anthropic", name: "claude-sonnet-4-20250514" }, // needs ANTHROPIC_API_KEY
+  model: { provider: "anthropic", name: "claude-sonnet-4-6" }, // needs ANTHROPIC_API_KEY
   // or
-  model: { provider: "google", name: "gemini-2.0-flash" },    // needs GOOGLE_GENERATIVE_AI_API_KEY
+  model: { provider: "google", name: "gemini-3-flash" },    // needs GOOGLE_GENERATIVE_AI_API_KEY
 });
 
 // Or bring your own model provider entirely
@@ -350,7 +350,7 @@ const runner = createRunner({
 
   // Default model (when agent doesn't specify)
   defaults: {
-    model: { provider: "openai", name: "gpt-4o-mini" },
+    model: { provider: "openai", name: "gpt-5.4-mini" },
     temperature: 0.7,
     maxTokens: 4096,
   },
@@ -375,7 +375,7 @@ runner.registerAgent(defineAgent({
   id: "code-reviewer",
   name: "Code Reviewer",
   systemPrompt: "Review code from GitHub PRs...",
-  model: { provider: "anthropic", name: "claude-sonnet-4-20250514" },
+  model: { provider: "anthropic", name: "claude-sonnet-4-6" },
   tools: [
     { type: "mcp", server: "github", tools: ["get_file_contents"] },
   ],
@@ -399,7 +399,7 @@ runner.registerAgent(defineAgent({
   id: "classifier",
   name: "Classifier",
   systemPrompt: "Classify support tickets...",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   eval: {
     rubric: "Must correctly classify the ticket category",
     testCases: [

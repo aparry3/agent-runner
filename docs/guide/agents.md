@@ -15,7 +15,7 @@ const agent = defineAgent({
   systemPrompt: "You are a helpful customer support agent for Acme Corp...",
   model: {
     provider: "anthropic",
-    name: "claude-sonnet-4-20250514",
+    name: "claude-sonnet-4-6",
     temperature: 0.7,
     maxTokens: 2048,
   },
@@ -49,7 +49,7 @@ const agent = defineAgent({
 ```typescript
 model: {
   provider: "openai",     // "openai" | "anthropic" | "google" | etc.
-  name: "gpt-4o",         // Model name
+  name: "gpt-5.4",         // Model name
   temperature: 0.7,       // 0-2 (optional)
   maxTokens: 4096,        // Max output tokens (optional)
   topP: 0.9,              // Nucleus sampling (optional)
@@ -86,7 +86,7 @@ defineAgent({
   id: "classifier",
   name: "Sentiment Classifier",
   systemPrompt: "Classify the sentiment of the given text.",
-  model: { provider: "openai", name: "gpt-4o-mini" },
+  model: { provider: "openai", name: "gpt-5.4-mini" },
   examples: [
     { input: "I love this product!", output: "positive" },
     { input: "Terrible experience.", output: "negative" },
@@ -104,7 +104,7 @@ defineAgent({
   id: "extractor",
   name: "Entity Extractor",
   systemPrompt: "Extract entities from text.",
-  model: { provider: "openai", name: "gpt-4o" },
+  model: { provider: "openai", name: "gpt-5.4" },
   outputSchema: {
     type: "object",
     properties: {

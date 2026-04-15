@@ -11,7 +11,7 @@ defineAgent({
   id: "classifier",
   name: "Sentiment Classifier",
   systemPrompt: "Classify sentiment as positive, negative, or neutral.",
-  model: { provider: "openai", name: "gpt-4o-mini" },
+  model: { provider: "openai", name: "gpt-5.4-mini" },
   eval: {
     testCases: [
       {
@@ -60,7 +60,7 @@ assertions: [
 ```typescript
 eval: {
   rubric: "The response should be helpful, concise, and accurate.",
-  evalModel: "openai:gpt-4o",  // Model for judging
+  evalModel: "openai:gpt-5.4",  // Model for judging
   testCases: [
     {
       input: "How do I reset my password?",

@@ -9,7 +9,7 @@ inputSchema:
 
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4-nano
   temperature: 0
 
 instruction: |

@@ -9,7 +9,7 @@ name: Simple Chatbot
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 instruction: "Answer the question: {{userQuery}}"
 `;
     const manifest = parseManifest(yaml);
@@ -17,7 +17,7 @@ instruction: "Answer the question: {{userQuery}}"
     expect(manifest.id).toBe("chatbot");
     if (manifest.kind === "llm") {
       expect(manifest.model.provider).toBe("openai");
-      expect(manifest.model.name).toBe("gpt-4o");
+      expect(manifest.model.name).toBe("gpt-5.4");
       expect(manifest.instruction).toBe("Answer the question: {{userQuery}}");
     }
   });
@@ -28,7 +28,7 @@ id: researcher
 kind: llm
 model:
   provider: openai
-  name: gpt-4o
+  name: gpt-5.4
 instruction: "Research this"
 tools:
   - kind: mcp
@@ -155,7 +155,7 @@ steps:
       kind: llm
       model:
         provider: openai
-        name: gpt-4o
+        name: gpt-5.4
       instruction: "Summarize: {{data}}"
       stateKey: summarizer
 `;

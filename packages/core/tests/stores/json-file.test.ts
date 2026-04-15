@@ -28,7 +28,7 @@ describe("JsonFileStore", () => {
       id: "test",
       name: "Test Agent",
       systemPrompt: "You are a test.",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
     };
@@ -204,7 +204,7 @@ describe("JsonFileStore", () => {
       toolCalls: [],
       usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
       duration: 100,
-      model: "openai/gpt-4o",
+      model: "openai/gpt-5.4",
       timestamp: "2026-01-01T00:00:00Z",
     };
 
@@ -276,7 +276,7 @@ describe("JsonFileStore", () => {
         id: "my/agent:v1.0",
         name: "Special Agent",
         systemPrompt: "test",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       };
       await store.putAgent(agent);
       const retrieved = await store.getAgent("my/agent:v1.0");
@@ -300,7 +300,7 @@ describe("JsonFileStore", () => {
         id: "secret",
         name: "A",
         systemPrompt: "",
-        model: { provider: "openai", name: "gpt-4o" },
+        model: { provider: "openai", name: "gpt-5.4" },
       });
       expect(await storeB.getAgent("secret")).toBeNull();
       expect((await storeB.listAgents()).length).toBe(0);

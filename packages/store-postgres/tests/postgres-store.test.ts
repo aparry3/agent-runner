@@ -33,7 +33,7 @@ describe.skipIf(!hasDb)("PostgresStore (integration)", () => {
       id: "test",
       name: "Test",
       systemPrompt: "",
-      model: { provider: "openai", name: "gpt-4o" },
+      model: { provider: "openai", name: "gpt-5.4" },
     };
     await store.putAgent(agent);
     expect((await store.getAgent("test"))?.name).toBe("Test");

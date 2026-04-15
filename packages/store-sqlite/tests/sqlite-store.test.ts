@@ -31,7 +31,7 @@ describe("SqliteStore", () => {
       name: "Test Agent",
       description: "A test agent",
       systemPrompt: "You are a test agent.",
-      model: { provider: "openai", name: "gpt-4o-mini" },
+      model: { provider: "openai", name: "gpt-5.4-mini" },
     };
 
     it("should put and get an agent", async () => {
@@ -312,7 +312,7 @@ describe("SqliteStore", () => {
       toolCalls: [],
       usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
       duration: 500,
-      model: "gpt-4o-mini",
+      model: "gpt-5.4-mini",
       timestamp: now,
     };
 
@@ -456,7 +456,7 @@ describe("SqliteStore", () => {
         id: "concurrent",
         name: "Concurrent Agent",
         systemPrompt: "test",
-        model: { provider: "openai", name: "gpt-4o-mini" },
+        model: { provider: "openai", name: "gpt-5.4-mini" },
       };
 
       // Run multiple operations simultaneously

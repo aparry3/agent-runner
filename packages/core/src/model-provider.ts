@@ -29,7 +29,7 @@ export class AISDKModelProvider implements ModelProvider {
       for (const t of options.tools) {
         tools[t.name] = aiTool({
           description: t.description,
-          parameters: jsonSchemaToZod(t.parameters, z),
+          inputSchema: jsonSchemaToZod(t.parameters, z),
         });
       }
     }
@@ -38,21 +38,23 @@ export class AISDKModelProvider implements ModelProvider {
       model,
       messages,
       tools: Object.keys(tools).length > 0 ? tools : undefined,
-      maxSteps: 1,
       abortSignal: options.signal,
     });
+
+    const inputTokens = result.usage?.inputTokens ?? 0;
+    const outputTokens = result.usage?.outputTokens ?? 0;
 
     return {
       text: result.text ?? "",
       toolCalls: result.toolCalls?.map(tc => ({
         id: tc.toolCallId,
         name: tc.toolName,
-        args: tc.args,
+        args: tc.input,
       })),
       usage: {
-        promptTokens: result.usage?.promptTokens ?? 0,
-        completionTokens: result.usage?.completionTokens ?? 0,
-        totalTokens: (result.usage?.promptTokens ?? 0) + (result.usage?.completionTokens ?? 0),
+        promptTokens: inputTokens,
+        completionTokens: outputTokens,
+        totalTokens: inputTokens + outputTokens,
       },
       finishReason: result.finishReason ?? "stop",
     };
@@ -77,7 +79,7 @@ export class AISDKModelProvider implements ModelProvider {
       for (const t of options.tools) {
         tools[t.name] = aiTool({
           description: t.description,
-          parameters: jsonSchemaToZod(t.parameters, z),
+          inputSchema: jsonSchemaToZod(t.parameters, z),
         });
       }
     }
@@ -86,18 +88,21 @@ export class AISDKModelProvider implements ModelProvider {
       model,
       messages,
       tools: Object.keys(tools).length > 0 ? tools : undefined,
-      maxSteps: 1,
       abortSignal: options.signal,
     });
 
-    const toolCallsPromise = result.toolCalls.then(tcs =>
-      tcs.map(tc => ({ id: tc.toolCallId, name: tc.toolName, args: tc.args }))
+    const toolCallsPromise = Promise.resolve(result.toolCalls).then(tcs =>
+      tcs.map(tc => ({ id: tc.toolCallId, name: tc.toolName, args: tc.input }))
     );
-    const usagePromise = result.usage.then(u => ({
-      promptTokens: u?.promptTokens ?? 0,
-      completionTokens: u?.completionTokens ?? 0,
-      totalTokens: (u?.promptTokens ?? 0) + (u?.completionTokens ?? 0),
-    }));
+    const usagePromise = Promise.resolve(result.usage).then(u => {
+      const inputTokens = u?.inputTokens ?? 0;
+      const outputTokens = u?.outputTokens ?? 0;
+      return {
+        promptTokens: inputTokens,
+        completionTokens: outputTokens,
+        totalTokens: inputTokens + outputTokens,
+      };
+    });
     const finishReasonPromise = Promise.resolve(result.finishReason) as Promise<string>;
 
     return {

@@ -68,7 +68,7 @@ agent.invoke                          ← Root span
 |---|---|---|
 | `agent.id` | string | Agent ID |
 | `agent.invocation.id` | string | Unique invocation ID |
-| `agent.model` | string | Model used (e.g., `openai/gpt-4o`) |
+| `agent.model` | string | Model used (e.g., `openai/gpt-5.4`) |
 | `agent.session.id` | string | Session ID (if set) |
 | `agent.context.ids` | string | Comma-separated context IDs |
 | `agent.usage.prompt_tokens` | number | Total prompt tokens |

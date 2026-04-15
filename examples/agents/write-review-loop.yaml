@@ -18,8 +18,8 @@ steps:
       id: writer
       kind: llm
       model:
-        provider: openai
-        name: gpt-4o
+        provider: anthropic
+        name: claude-sonnet-4-6
         temperature: 0.8
       instruction: |
         Write a short article about {{topic}} in a {{tone}} tone.
@@ -40,7 +40,7 @@ steps:
       kind: llm
       model:
         provider: openai
-        name: gpt-4o
+        name: gpt-5.4
         temperature: 0
       instruction: |
         Review this article draft. Evaluate clarity, accuracy, and tone.

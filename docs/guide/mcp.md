@@ -43,7 +43,7 @@ Once connected, MCP tools appear in the Tool Registry and can be assigned to age
 defineAgent({
   id: "code-reviewer",
   systemPrompt: "Review code from GitHub PRs...",
-  model: { provider: "anthropic", name: "claude-sonnet-4-20250514" },
+  model: { provider: "anthropic", name: "claude-sonnet-4-6" },
   tools: [
     // All tools from the server
     { type: "mcp", server: "github" },
