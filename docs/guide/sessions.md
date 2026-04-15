@@ -80,7 +80,7 @@ const runner = createRunner({
 });
 
 // SQLite — production-ready
-import { SqliteStore } from "@agent-runner/store-sqlite";
+import { SqliteStore } from "@agntz/store-sqlite";
 const runner = createRunner({
   store: new SqliteStore("./data.db"),
 });

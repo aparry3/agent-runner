@@ -1,4 +1,4 @@
-# @agent-runner/worker
+# @agntz/worker
 
 Hono HTTP worker that executes YAML-defined agents via the manifest engine. User-scoped — every request resolves to a `user_id` before hitting the store.
 
@@ -32,7 +32,7 @@ Two modes are accepted by the `workerAuth` middleware in `src/middleware/auth.ts
 X-Internal-Secret: $WORKER_INTERNAL_SECRET
 ```
 
-The worker trusts the header and reads `userId` from the request body. This is what `@agent-runner/app` uses when proxying a signed-in user's request.
+The worker trusts the header and reads `userId` from the request body. This is what `@agntz/app` uses when proxying a signed-in user's request.
 
 ### External (service → worker)
 
@@ -64,5 +64,5 @@ Default agents shipped in `src/defaults/agents/` (currently `agent-builder.yaml`
 ## Run locally
 
 ```bash
-pnpm --filter @agent-runner/worker dev
+pnpm --filter @agntz/worker dev
 ```

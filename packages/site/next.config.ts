@@ -3,14 +3,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname, "../.."),
-  transpilePackages: [
-    "@agntz/core",
-    "@agntz/manifest",
-    "@agntz/worker",
-  ],
-  serverExternalPackages: [
-    "@agntz/store-postgres",
-  ],
 };
 
 export default nextConfig;

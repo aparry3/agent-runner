@@ -1,5 +1,5 @@
 import type { Context, MiddlewareHandler } from "hono";
-import type { UnifiedStore } from "@agent-runner/core";
+import type { UnifiedStore } from "@agntz/core";
 
 export interface AuthDeps {
   store: UnifiedStore;

@@ -11,7 +11,7 @@ import type {
   ContextEntry,
   InvocationLog,
   LogFilter,
-} from "@agent-runner/core";
+} from "@agntz/core";
 
 const MIGRATIONS = [
   // v1: Initial schema

@@ -1,6 +1,6 @@
-# @agent-runner/core
+# @agntz/core
 
-[![npm version](https://img.shields.io/npm/v/@agent-runner/core.svg)](https://www.npmjs.com/package/@agent-runner/core)
+[![npm version](https://img.shields.io/npm/v/@agntz/core.svg)](https://www.npmjs.com/package/@agntz/core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7+-blue.svg)](https://www.typescriptlang.org/)
@@ -12,11 +12,11 @@ TypeScript SDK for defining, running, and evaluating AI agents. Agents are porta
 ## Install
 
 ```bash
-npm install @agent-runner/core
+npm install @agntz/core
 # or
-pnpm add @agent-runner/core
+pnpm add @agntz/core
 # or
-yarn add @agent-runner/core
+yarn add @agntz/core
 ```
 
 Then install at least one model provider (all optional peer dependencies):
@@ -37,7 +37,7 @@ export OPENAI_API_KEY=sk-...
 ## Quick Start
 
 ```typescript
-import { createRunner, defineAgent } from "@agent-runner/core";
+import { createRunner, defineAgent } from "@agntz/core";
 
 const runner = createRunner();
 
@@ -60,7 +60,7 @@ console.log(result.output);
 Agents are plain data objects — JSON-serializable, portable, and versionable:
 
 ```typescript
-import { defineAgent } from "@agent-runner/core";
+import { defineAgent } from "@agntz/core";
 
 const agent = defineAgent({
   id: "writer",
@@ -78,7 +78,7 @@ const agent = defineAgent({
 Define typed tools with Zod schemas and register them with the runner:
 
 ```typescript
-import { createRunner, defineAgent, defineTool } from "@agent-runner/core";
+import { createRunner, defineAgent, defineTool } from "@agntz/core";
 import { z } from "zod";
 
 const lookupOrder = defineTool({
@@ -251,7 +251,7 @@ runner.registerAgent(defineAgent({
 Expose your agents as an MCP server:
 
 ```typescript
-import { createMCPServer } from "@agent-runner/core/mcp-server";
+import { createMCPServer } from "@agntz/core/mcp-server";
 const server = createMCPServer(runner);
 ```
 
@@ -292,7 +292,7 @@ console.log(results.summary);
 The default store is in-memory. For persistence, use the built-in `JsonFileStore` or install a database adapter:
 
 ```typescript
-import { createRunner, JsonFileStore } from "@agent-runner/core";
+import { createRunner, JsonFileStore } from "@agntz/core";
 
 // JSON files — good for local dev
 const runner = createRunner({
@@ -304,8 +304,8 @@ const runner = createRunner({
 
 | Package | Use Case |
 |---|---|
-| [`@agent-runner/store-sqlite`](../store-sqlite) | Single-server production |
-| [`@agent-runner/store-postgres`](../store-postgres) | Multi-server production |
+| [`@agntz/store-sqlite`](../store-sqlite) | Single-server production |
+| [`@agntz/store-postgres`](../store-postgres) | Multi-server production |
 
 You can also split stores by concern:
 
@@ -448,8 +448,8 @@ All errors extend `AgentRunnerError` with a `code` field:
 Starter agent configurations for common patterns:
 
 ```typescript
-import { templates } from "@agent-runner/core/templates";
-import { defineAgent } from "@agent-runner/core";
+import { templates } from "@agntz/core/templates";
+import { defineAgent } from "@agntz/core";
 
 runner.registerAgent(defineAgent({
   ...templates.chatbot,
@@ -519,11 +519,11 @@ Zero overhead when telemetry is not configured.
 
 | Package | Description |
 |---|---|
-| [`@agent-runner/manifest`](../manifest) | YAML agent manifest parser + executor |
-| [`@agent-runner/store-sqlite`](../store-sqlite) | SQLite storage adapter |
-| [`@agent-runner/store-postgres`](../store-postgres) | PostgreSQL storage adapter (multi-tenant) |
-| [`@agent-runner/worker`](../worker) | Hono HTTP worker for executing agents |
-| [`@agent-runner/app`](../app) | Next.js web UI — multi-tenant, Clerk auth |
+| [`@agntz/manifest`](../manifest) | YAML agent manifest parser + executor |
+| [`@agntz/store-sqlite`](../store-sqlite) | SQLite storage adapter |
+| [`@agntz/store-postgres`](../store-postgres) | PostgreSQL storage adapter (multi-tenant) |
+| [`@agntz/worker`](../worker) | Hono HTTP worker for executing agents |
+| [`@agntz/app`](../app) | Next.js web UI — multi-tenant, Clerk auth |
 
 ## Contributing
 

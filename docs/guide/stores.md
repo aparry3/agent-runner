@@ -8,7 +8,7 @@ agent-runner uses pluggable storage interfaces. Every persistence concern — ag
 |-------|---------|----------|
 | `MemoryStore` | `agent-runner` | Testing, ephemeral usage |
 | `JsonFileStore` | `agent-runner` | Local development, prototyping |
-| `SqliteStore` | `@agent-runner/store-sqlite` | Single-server production |
+| `SqliteStore` | `@agntz/store-sqlite` | Single-server production |
 
 ## Quick Setup
 
@@ -45,7 +45,7 @@ Creates a directory structure:
 ### SQLite
 
 ```typescript
-import { SqliteStore } from "@agent-runner/store-sqlite";
+import { SqliteStore } from "@agntz/store-sqlite";
 
 const runner = createRunner({
   store: new SqliteStore("./data.db"),

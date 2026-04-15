@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PostgresStore } from "../src/postgres-store.js";
-import type { AgentDefinition } from "@agent-runner/core";
+import type { AgentDefinition } from "@agntz/core";
 
 /**
  * Integration tests for PostgresStore. Runs against a real Postgres instance

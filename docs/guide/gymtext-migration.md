@@ -194,11 +194,11 @@ import { JsonFileStore } from "agent-runner";
 const store = new JsonFileStore("./data");
 
 // Production (single server)
-import { SqliteStore } from "@agent-runner/store-sqlite";
+import { SqliteStore } from "@agntz/store-sqlite";
 const store = new SqliteStore("./agent-runner.db");
 
 // Production (multi-server)
-import { PostgresStore } from "@agent-runner/store-postgres";
+import { PostgresStore } from "@agntz/store-postgres";
 const store = new PostgresStore(pool);
 ```
 
@@ -209,7 +209,7 @@ Just change one line — same runner, same agents, same tools.
 During development, add the Studio for a visual UI:
 
 ```bash
-pnpm add -D @agent-runner/studio
+pnpm add -D @agntz/studio
 npx agent-runner studio
 ```
 

@@ -1,6 +1,6 @@
-# @agent-runner/store-postgres
+# @agntz/store-postgres
 
-[![npm version](https://img.shields.io/npm/v/@agent-runner/store-postgres.svg)](https://www.npmjs.com/package/@agent-runner/store-postgres)
+[![npm version](https://img.shields.io/npm/v/@agntz/store-postgres.svg)](https://www.npmjs.com/package/@agntz/store-postgres)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org)
 
@@ -9,18 +9,18 @@ PostgreSQL storage adapter for [agent-runner](https://github.com/aparry3/agent-r
 ## Install
 
 ```bash
-npm install @agent-runner/store-postgres @agent-runner/core
+npm install @agntz/store-postgres @agntz/core
 # or
-pnpm add @agent-runner/store-postgres @agent-runner/core
+pnpm add @agntz/store-postgres @agntz/core
 # or
-yarn add @agent-runner/store-postgres @agent-runner/core
+yarn add @agntz/store-postgres @agntz/core
 ```
 
 ## Quick Start
 
 ```typescript
-import { createRunner, defineAgent } from "@agent-runner/core";
-import { PostgresStore } from "@agent-runner/store-postgres";
+import { createRunner, defineAgent } from "@agntz/core";
+import { PostgresStore } from "@agntz/store-postgres";
 
 const runner = createRunner({
   store: new PostgresStore("postgresql://user:pass@localhost:5432/mydb"),
@@ -53,7 +53,7 @@ Share a `pg.Pool` across your application to manage connections centrally:
 
 ```typescript
 import pg from "pg";
-import { PostgresStore } from "@agent-runner/store-postgres";
+import { PostgresStore } from "@agntz/store-postgres";
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
@@ -111,7 +111,7 @@ const store = new PostgresStore({
 
 ### `PostgresStore`
 
-Implements `UnifiedStore` from `@agent-runner/core` — provides `AgentStore`, `SessionStore`, `ContextStore`, and `LogStore` in a single class.
+Implements `UnifiedStore` from `@agntz/core` — provides `AgentStore`, `SessionStore`, `ContextStore`, and `LogStore` in a single class.
 
 #### Constructor
 
@@ -251,8 +251,8 @@ process.on("SIGTERM", async () => {
 Use PostgreSQL for agents and logs, but a different store for sessions:
 
 ```typescript
-import { createRunner, MemoryStore } from "@agent-runner/core";
-import { PostgresStore } from "@agent-runner/store-postgres";
+import { createRunner, MemoryStore } from "@agntz/core";
+import { PostgresStore } from "@agntz/store-postgres";
 
 const pgStore = new PostgresStore(process.env.DATABASE_URL!);
 
@@ -268,8 +268,8 @@ const runner = createRunner({
 
 | Package | Description |
 |---|---|
-| [`@agent-runner/core`](../core) | Core SDK — createRunner, agents, tools, stores |
-| [`@agent-runner/store-sqlite`](../store-sqlite) | SQLite adapter for single-server deployments |
+| [`@agntz/core`](../core) | Core SDK — createRunner, agents, tools, stores |
+| [`@agntz/store-sqlite`](../store-sqlite) | SQLite adapter for single-server deployments |
 
 ## Contributing
 

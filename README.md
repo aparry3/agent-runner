@@ -500,8 +500,8 @@ Commands: `.new` (new session), `.session` (show ID), `.exit` (quit). Sessions p
 **Run locally:**
 ```bash
 # root .env.local with CLERK_*, DATABASE_URL, WORKER_INTERNAL_SECRET
-pnpm --filter @agent-runner/worker dev    # :4001
-pnpm --filter @agent-runner/app dev       # :3000
+pnpm --filter @agntz/worker dev    # :4001
+pnpm --filter @agntz/app dev       # :3000
 ```
 
 See `packages/app/README.md` for deployment.
@@ -511,11 +511,11 @@ See `packages/app/README.md` for deployment.
 For production single-server deployments:
 
 ```bash
-npm install @agent-runner/store-sqlite
+npm install @agntz/store-sqlite
 ```
 
 ```typescript
-import { SqliteStore } from "@agent-runner/store-sqlite";
+import { SqliteStore } from "@agntz/store-sqlite";
 
 const runner = createRunner({
   store: new SqliteStore("./data.db"),
@@ -529,11 +529,11 @@ WAL mode enabled by default, automatic migrations, full-text search on logs.
 For multi-server production deployments:
 
 ```bash
-npm install @agent-runner/store-postgres
+npm install @agntz/store-postgres
 ```
 
 ```typescript
-import { PostgresStore } from "@agent-runner/store-postgres";
+import { PostgresStore } from "@agntz/store-postgres";
 
 const runner = createRunner({
   store: new PostgresStore("postgresql://user:pass@localhost:5432/mydb"),
@@ -595,11 +595,11 @@ npx agent-runner eval classifier
 | Package | Description |
 |---|---|
 | `agent-runner` | Core SDK — createRunner, invoke, agents, tools, stores |
-| `@agent-runner/manifest` | YAML agent manifest parser + executor |
-| `@agent-runner/store-sqlite` | SQLite store adapter (single-server) |
-| `@agent-runner/store-postgres` | PostgreSQL store adapter (production, multi-tenant) |
-| `@agent-runner/worker` | Hono HTTP worker — executes agents over `/run` and `/run/stream` |
-| `@agent-runner/app` | Next.js web UI — multi-tenant, Clerk auth, API keys |
+| `@agntz/manifest` | YAML agent manifest parser + executor |
+| `@agntz/store-sqlite` | SQLite store adapter (single-server) |
+| `@agntz/store-postgres` | PostgreSQL store adapter (production, multi-tenant) |
+| `@agntz/worker` | Hono HTTP worker — executes agents over `/run` and `/run/stream` |
+| `@agntz/app` | Next.js web UI — multi-tenant, Clerk auth, API keys |
 
 ## License
 

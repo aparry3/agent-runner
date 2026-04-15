@@ -67,7 +67,7 @@ Implements all four interfaces. Stores data as JSON files.
 ### SqliteStore
 
 ```typescript
-import { SqliteStore } from "@agent-runner/store-sqlite";
+import { SqliteStore } from "@agntz/store-sqlite";
 const store = new SqliteStore("./data.db");
 ```
 

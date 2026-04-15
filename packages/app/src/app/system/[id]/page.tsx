@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { isSuperAdmin } from "@/lib/admin";
-import { getSystemAgent } from "@agent-runner/worker";
+import { getSystemAgent } from "@agntz/worker";
 import { YamlViewer } from "@/components/yaml-viewer";
 
 export default async function SystemAgentDetailPage({

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { defineTool } from "@agent-runner/core";
+import { defineTool } from "@agntz/core";
 import { z } from "zod";
 
 const DOCS_DIR = process.env.DOCS_DIR ?? "./docs";

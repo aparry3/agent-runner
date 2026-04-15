@@ -1,12 +1,12 @@
-import type { Runner, AgentDefinition } from "@agent-runner/core";
+import type { Runner, AgentDefinition } from "@agntz/core";
 import type {
   ExecutionContext,
   AgentManifest,
   LLMAgentManifest,
   ToolCallConfig,
   AgentState,
-} from "@agent-runner/manifest";
-import { parseManifest } from "@agent-runner/manifest";
+} from "@agntz/manifest";
+import { parseManifest } from "@agntz/manifest";
 
 /**
  * Create an ExecutionContext that bridges the manifest engine to the core Runner.
@@ -36,6 +36,14 @@ export function createExecutionContext(runner: Runner): ExecutionContext {
       agentDef.id = tempId;
       runner.registerAgent(agentDef as AgentDefinition);
 
+      const hasSchema = Boolean(manifest.outputSchema);
+      const start = Date.now();
+      console.log(
+        `[llm] ${manifest.id} start ` +
+        `model=${manifest.model.provider}/${manifest.model.name} ` +
+        `instr=${renderedInstruction.length}ch schema=${hasSchema}`
+      );
+
       try {
         // Build user input from state
         const userInput = state.userQuery
@@ -43,17 +51,32 @@ export function createExecutionContext(runner: Runner): ExecutionContext {
           : JSON.stringify(state);
 
         const result = await runner.invoke(tempId, userInput);
+        const duration = Date.now() - start;
 
         // If outputSchema is defined, try to parse structured output
-        if (manifest.outputSchema) {
+        if (hasSchema) {
           try {
-            return JSON.parse(result.output);
-          } catch {
+            const parsed = JSON.parse(result.output);
+            console.log(
+              `[llm] ${manifest.id} done ${duration}ms ` +
+              `out=${result.output.length}ch parsed keys=[${Object.keys(parsed).join(",")}]`
+            );
+            return parsed;
+          } catch (err) {
+            console.warn(
+              `[llm] ${manifest.id} done ${duration}ms ` +
+              `out=${result.output.length}ch PARSE FAILED (${(err as Error).message}) — returning raw text`
+            );
             return result.output;
           }
         }
 
+        console.log(`[llm] ${manifest.id} done ${duration}ms out=${result.output.length}ch`);
         return result.output;
+      } catch (err) {
+        const duration = Date.now() - start;
+        console.error(`[llm] ${manifest.id} failed ${duration}ms: ${(err as Error).message}`);
+        throw err;
       } finally {
         // Clean up temp agent
         await runner.agents.deleteAgent(tempId).catch(() => {});
@@ -69,8 +92,16 @@ export function createExecutionContext(runner: Runner): ExecutionContext {
       // The params are already resolved from state by the tool executor
       const input = config.params ?? {};
 
-      const result = await runner.tools.execute(toolName, input);
-      return result;
+      const start = Date.now();
+      console.log(`[tool] ${toolName} start params=${JSON.stringify(input).slice(0, 200)}`);
+      try {
+        const result = await runner.tools.execute(toolName, input);
+        console.log(`[tool] ${toolName} done ${Date.now() - start}ms`);
+        return result;
+      } catch (err) {
+        console.error(`[tool] ${toolName} failed ${Date.now() - start}ms: ${(err as Error).message}`);
+        throw err;
+      }
     },
   };
 }
@@ -133,7 +164,7 @@ function manifestSchemaToJsonSchema(schema: Record<string, unknown>): Record<str
     if (typeof value === "string") {
       properties[key] = { type: value };
     } else {
-      properties[key] = value;
+      properties[key] = enforceStrictObject(value);
     }
     required.push(key);
   }
@@ -142,7 +173,32 @@ function manifestSchemaToJsonSchema(schema: Record<string, unknown>): Record<str
     type: "object",
     properties,
     required,
+    additionalProperties: false,
   };
+}
+
+/**
+ * OpenAI strict structured output requires `additionalProperties: false` on every
+ * nested object schema. Walk the schema and enforce it.
+ */
+function enforceStrictObject(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const obj = value as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...obj };
+
+  if (obj.type === "object") {
+    if (!("additionalProperties" in out)) out.additionalProperties = false;
+    const props = obj.properties as Record<string, unknown> | undefined;
+    if (props) {
+      const walked: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(props)) walked[k] = enforceStrictObject(v);
+      out.properties = walked;
+    }
+  }
+  if (obj.type === "array" && obj.items) {
+    out.items = enforceStrictObject(obj.items);
+  }
+  return out;
 }
 
 /**

@@ -11,7 +11,7 @@ export class AISDKModelProvider implements ModelProvider {
     this.providerStore = options?.providerStore;
   }
   async generateText(options: GenerateTextOptions): Promise<GenerateTextResult> {
-    const { generateText } = await import("ai");
+    const { generateText, Output, jsonSchema } = await import("ai");
     const model = await this.resolveModel(options.model);
 
     const messages = options.messages.map(m => ({
@@ -34,10 +34,18 @@ export class AISDKModelProvider implements ModelProvider {
       }
     }
 
+    const experimental_output = options.outputSchema
+      ? Output.object({
+          name: options.outputSchema.name,
+          schema: jsonSchema(options.outputSchema.schema as Parameters<typeof jsonSchema>[0]),
+        })
+      : undefined;
+
     const result = await generateText({
       model,
       messages,
       tools: Object.keys(tools).length > 0 ? tools : undefined,
+      experimental_output,
       abortSignal: options.signal,
     });
 
@@ -61,7 +69,7 @@ export class AISDKModelProvider implements ModelProvider {
   }
 
   async streamText(options: GenerateTextOptions): Promise<ModelStreamResult> {
-    const { streamText } = await import("ai");
+    const { streamText, Output, jsonSchema } = await import("ai");
     const model = await this.resolveModel(options.model);
 
     const messages = options.messages.map(m => ({
@@ -84,10 +92,18 @@ export class AISDKModelProvider implements ModelProvider {
       }
     }
 
+    const experimental_output = options.outputSchema
+      ? Output.object({
+          name: options.outputSchema.name,
+          schema: jsonSchema(options.outputSchema.schema as Parameters<typeof jsonSchema>[0]),
+        })
+      : undefined;
+
     const result = streamText({
       model,
       messages,
       tools: Object.keys(tools).length > 0 ? tools : undefined,
+      experimental_output,
       abortSignal: options.signal,
     });
 

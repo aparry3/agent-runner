@@ -1,5 +1,5 @@
-import { defineTool } from "@agent-runner/core";
-import { validateManifest } from "@agent-runner/manifest";
+import { defineTool } from "@agntz/core";
+import { validateManifest } from "@agntz/manifest";
 import { z } from "zod";
 
 /**

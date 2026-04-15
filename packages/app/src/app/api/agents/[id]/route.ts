@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserContext, AuthRequiredError } from "@/lib/user";
-import { validateManifest } from "@agent-runner/manifest";
+import { validateManifest } from "@agntz/manifest";
 
 export async function GET(
   _req: NextRequest,

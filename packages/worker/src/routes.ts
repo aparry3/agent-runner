@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
-import { createRunner, MemoryStore, type Runner, type UnifiedStore } from "@agent-runner/core";
-import { execute, parseManifest } from "@agent-runner/manifest";
-import type { AgentManifest } from "@agent-runner/manifest";
+import { createRunner, MemoryStore, type Runner, type UnifiedStore } from "@agntz/core";
+import { execute, parseManifest } from "@agntz/manifest";
+import type { AgentManifest } from "@agntz/manifest";
 import { createExecutionContext } from "./bridge.js";
 import { workerAuth, getUserId, getCachedBody } from "./middleware/auth.js";
 import { isSystemAgentId, loadSystemAgent } from "./system-agents.js";
@@ -36,6 +36,8 @@ export function createWorkerAPI({ store, internalSecret }: WorkerAPIOptions): Ho
   app.use("/run/stream", workerAuth({ store, internalSecret }));
 
   app.post("/run", async (c) => {
+    const start = Date.now();
+    let agentIdForLog: string | undefined;
     try {
       const userId = getUserId(c);
       const body = (getCachedBody(c) ?? (await c.req.json())) as {
@@ -44,18 +46,30 @@ export function createWorkerAPI({ store, internalSecret }: WorkerAPIOptions): Ho
         sessionId?: string;
       };
       const { agentId, input } = body;
+      agentIdForLog = agentId;
 
       if (!agentId) {
         return c.json({ error: "Missing required field: agentId" }, 400);
       }
 
+      console.log(
+        `[run] start agent=${agentId} user=${userId} ` +
+        `inputKeys=${input && typeof input === "object" ? Object.keys(input).join(",") : typeof input}`
+      );
+
       const { runner, manifest } = await resolveRunnerAndManifest(store, userId, agentId);
       const ctx = createExecutionContext(runner);
       const result = await execute(manifest, input ?? "", ctx);
 
+      console.log(
+        `[run] done agent=${agentId} ${Date.now() - start}ms kind=${manifest.kind} ` +
+        `outputKeys=${result.output && typeof result.output === "object" ? Object.keys(result.output).join(",") : typeof result.output}`
+      );
+
       return c.json({ output: result.output, state: result.state });
     } catch (error) {
       const status = isNotFound(error) ? 404 : 500;
+      console.error(`[run] failed agent=${agentIdForLog} ${Date.now() - start}ms: ${errorMessage(error)}`);
       return c.json({ error: errorMessage(error) }, status);
     }
   });

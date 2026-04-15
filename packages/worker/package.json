@@ -1,5 +1,5 @@
 {
-  "name": "@agent-runner/worker",
+  "name": "@agntz/worker",
   "version": "0.1.0",
   "description": "Hono server for agent execution — runs YAML-defined agents via the manifest engine",
   "type": "module",
@@ -38,9 +38,9 @@
     "yaml": "^2.8.0",
     "zod": "^3.25.0",
     "dotenv": "^16.5.0",
-    "@agent-runner/core": "workspace:*",
-    "@agent-runner/manifest": "workspace:*",
-    "@agent-runner/store-postgres": "workspace:*"
+    "@agntz/core": "workspace:*",
+    "@agntz/manifest": "workspace:*",
+    "@agntz/store-postgres": "workspace:*"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",

@@ -1,4 +1,4 @@
-# @agent-runner/core
+# @agntz/core
 
 ## 0.1.2
 

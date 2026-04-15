@@ -1,4 +1,4 @@
-import type { AgentDefinition, AgentVersionSummary, UnifiedStore } from "@agent-runner/core";
+import type { AgentDefinition, AgentVersionSummary, UnifiedStore } from "@agntz/core";
 
 export async function listVersions(store: UnifiedStore, agentId: string): Promise<AgentVersionSummary[]> {
   return store.listAgentVersions(agentId);

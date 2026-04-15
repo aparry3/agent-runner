@@ -10,7 +10,7 @@ import type {
   ContextEntry,
   InvocationLog,
   LogFilter,
-} from "@agent-runner/core";
+} from "@agntz/core";
 
 const { Pool } = pg;
 type PoolType = InstanceType<typeof pg.Pool>;

@@ -1,6 +1,6 @@
-# @agent-runner/store-sqlite
+# @agntz/store-sqlite
 
-[![npm version](https://img.shields.io/npm/v/@agent-runner/store-sqlite.svg)](https://www.npmjs.com/package/@agent-runner/store-sqlite)
+[![npm version](https://img.shields.io/npm/v/@agntz/store-sqlite.svg)](https://www.npmjs.com/package/@agntz/store-sqlite)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org)
 
@@ -11,18 +11,18 @@ Built on [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) for synchr
 ## Install
 
 ```bash
-npm install @agent-runner/store-sqlite @agent-runner/core
+npm install @agntz/store-sqlite @agntz/core
 # or
-pnpm add @agent-runner/store-sqlite @agent-runner/core
+pnpm add @agntz/store-sqlite @agntz/core
 # or
-yarn add @agent-runner/store-sqlite @agent-runner/core
+yarn add @agntz/store-sqlite @agntz/core
 ```
 
 ## Quick Start
 
 ```typescript
-import { createRunner, defineAgent } from "@agent-runner/core";
-import { SqliteStore } from "@agent-runner/store-sqlite";
+import { createRunner, defineAgent } from "@agntz/core";
+import { SqliteStore } from "@agntz/store-sqlite";
 
 const runner = createRunner({
   store: new SqliteStore("./data.db"),
@@ -77,7 +77,7 @@ const store = new SqliteStore({
 
 ### `SqliteStore`
 
-Implements `UnifiedStore` from `@agent-runner/core` — provides `AgentStore`, `SessionStore`, `ContextStore`, and `LogStore` in a single class.
+Implements `UnifiedStore` from `@agntz/core` — provides `AgentStore`, `SessionStore`, `ContextStore`, and `LogStore` in a single class.
 
 #### Constructor
 
@@ -169,15 +169,15 @@ The store creates the following tables automatically:
 | **Setup** | Zero config — just a file path | Requires a running database |
 | **Concurrent writes** | One writer at a time (WAL helps reads) | Full concurrent writes |
 | **Best for** | Dev, prototyping, single-instance production | Scaled production, multiple app instances |
-| **Package** | `@agent-runner/store-sqlite` | [`@agent-runner/store-postgres`](../store-postgres) |
+| **Package** | `@agntz/store-sqlite` | [`@agntz/store-postgres`](../store-postgres) |
 
 ## Examples
 
 ### Local Development
 
 ```typescript
-import { createRunner, defineAgent, JsonFileStore } from "@agent-runner/core";
-import { SqliteStore } from "@agent-runner/store-sqlite";
+import { createRunner, defineAgent, JsonFileStore } from "@agntz/core";
+import { SqliteStore } from "@agntz/store-sqlite";
 
 // Upgrade from JsonFileStore to SQLite — same API
 const runner = createRunner({
@@ -189,8 +189,8 @@ const runner = createRunner({
 
 ```typescript
 import { describe, it, expect, beforeEach } from "vitest";
-import { createRunner } from "@agent-runner/core";
-import { SqliteStore } from "@agent-runner/store-sqlite";
+import { createRunner } from "@agntz/core";
+import { SqliteStore } from "@agntz/store-sqlite";
 
 describe("my agent", () => {
   let runner;
@@ -233,8 +233,8 @@ process.on("SIGTERM", async () => {
 
 | Package | Description |
 |---|---|
-| [`@agent-runner/core`](../core) | Core SDK — createRunner, agents, tools, stores |
-| [`@agent-runner/store-postgres`](../store-postgres) | PostgreSQL adapter for multi-server deployments |
+| [`@agntz/core`](../core) | Core SDK — createRunner, agents, tools, stores |
+| [`@agntz/store-postgres`](../store-postgres) | PostgreSQL adapter for multi-server deployments |
 
 ## Contributing
 

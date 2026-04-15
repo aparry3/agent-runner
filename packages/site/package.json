@@ -1,25 +1,18 @@
 {
-  "name": "@agntz/app",
+  "name": "@agntz/site",
   "version": "0.1.0",
   "private": true,
-  "description": "Agent Runner Service — UI and API for defining, running, and managing AI agents",
+  "description": "Marketing site for agntz.co",
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "next dev --port 3001",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
-    "@agntz/core": "workspace:*",
-    "@agntz/manifest": "workspace:*",
-    "@agntz/store-postgres": "workspace:*",
-    "@agntz/worker": "workspace:*",
-    "@clerk/nextjs": "^7.1.0",
     "next": "^15.5.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "svix": "^1.90.0",
-    "yaml": "^2.8.0"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.0",

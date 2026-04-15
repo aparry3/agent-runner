@@ -16,6 +16,13 @@ services:
       db:
         condition: service_healthy
 
+  site:
+    build:
+      context: .
+      target: site
+    ports:
+      - "3001:3001"
+
   worker:
     build:
       context: .

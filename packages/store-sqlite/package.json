@@ -1,5 +1,5 @@
 {
-  "name": "@agent-runner/store-sqlite",
+  "name": "@agntz/store-sqlite",
   "version": "0.1.1",
   "description": "SQLite store adapter for agent-runner — single-server production storage",
   "type": "module",
@@ -26,14 +26,14 @@
     "better-sqlite3": "^11.8.1"
   },
   "devDependencies": {
-    "@agent-runner/core": "workspace:*",
+    "@agntz/core": "workspace:*",
     "@types/better-sqlite3": "^7.6.12",
     "tsup": "^8.5.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
   },
   "peerDependencies": {
-    "@agent-runner/core": ">=0.1.2"
+    "@agntz/core": ">=0.1.2"
   },
   "keywords": [
     "agent-runner",

@@ -19,7 +19,73 @@ steps:
         params:
           path: "schema-reference.md"
 
-  # Step 2: Generate + validate loop
+  # Step 2: Plan the pipeline structure before writing YAML.
+  # Separating "design" from "serialization" gives the generator an explicit
+  # blueprint — branching, data flow, state keys — instead of inferring shape
+  # from freeform prose.
+  - agent:
+      id: planner
+      kind: llm
+      inputSchema:
+        schema: string
+        description: string
+      model:
+        provider: openai
+        name: gpt-5.4
+        temperature: 0.2
+      instruction: |
+        You are a pipeline architect for the Agent Runner platform. You do NOT write YAML.
+        You produce a structural plan that a separate generator will translate into YAML.
+
+        Think carefully about the shape of the pipeline before describing it:
+
+        1. Kind — is this a single LLM/tool agent, or a pipeline (sequential/parallel)?
+        2. Inputs — what fields does the top-level agent need? Prefer typed objects over
+           opaque strings when the caller clearly has structured data.
+        3. Steps — for pipelines, decompose into discrete steps. For each step, decide:
+             - Its purpose (one sentence).
+             - Its kind (llm / tool / sequential / parallel).
+             - What it reads from state (upstream step outputs or top-level inputs).
+             - What it writes (its output shape / state key).
+        4. Branching — if different inputs should drive different paths, use a `when`
+           condition on the step rather than prose inside an instruction. A common
+           pattern: one shared "context builder" step, then two branch steps each
+           gated by a `when` comparing an input field to a string literal (see the
+           schema reference for the exact condition syntax). Skipped steps write
+           null to state, so the top-level `output` mapping can expose both
+           branches and the caller sees null for the branch that didn't run.
+        5. Loops — use `until` + `maxIterations` only when iteration is genuinely
+           needed (e.g. generate/validate cycles). Do not loop by default.
+        6. Parallel vs sequential — use parallel when steps are independent and
+           their outputs are merged downstream; sequential when step N depends on
+           step N-1's output.
+        7. Output mapping — what should the top-level agent expose? Name each
+           field and point it at the right state path.
+
+        Schema reference (read carefully — template syntax, condition syntax,
+        and state rules matter for the plan):
+        ---
+        {{schema}}
+        ---
+
+        User's description:
+        {{description}}
+
+        Return a concrete plan. Be specific about field names, state keys, and
+        any `when` conditions. The generator will follow this plan literally.
+      outputSchema:
+        overview: string
+        topLevelKind: string
+        inputSchema: string
+        steps: string
+        branching: string
+        dataFlow: string
+        output: string
+    input:
+      schema: "{{loadSchema}}"
+      description: "{{description}}"
+
+  # Step 3: Generate + validate loop, now guided by the plan.
   - agent:
       id: build-loop
       kind: sequential
@@ -28,6 +94,7 @@ steps:
       inputSchema:
         description: string
         schema: string
+        plan: object
       output:
         yaml: "{{generator.yaml}}"
         explanation: "{{generator.explanation}}"
@@ -40,6 +107,7 @@ steps:
             inputSchema:
               schema: string
               description: string
+              plan: object
               errors: object
               previousYaml: string
             model:
@@ -47,8 +115,9 @@ steps:
               name: gpt-5.4
               temperature: 0.3
             instruction: |
-              You are an expert agent builder for the Agent Runner platform. Your job is to create
-              valid YAML agent manifests based on user descriptions.
+              You are an expert agent builder for the Agent Runner platform. Your job is to
+              translate a structural plan into a valid YAML agent manifest. The plan has
+              already decided the pipeline shape, branching, and data flow — follow it.
 
               IMPORTANT RULES:
               - Every agent (including inline) MUST have an `id` field
@@ -58,35 +127,48 @@ steps:
               - Use `output` on pipeline agents for state-to-output mapping
               - Template variables use double-curly syntax (see schema reference for examples)
               - Conditional blocks use the if/endif form documented in the schema reference
+              - Step-level `when:` gates whether a step runs; skipped steps write null
               - All inputSchema properties are required but nullable
               - State is encapsulated per agent: parents can't read child state and
                 vice versa. To pass values down, use a step-level `input:` transform
                 whose keys exactly match the child agent's `inputSchema`.
 
-              Here is the complete schema reference:
+              Schema reference:
               ---
               {{schema}}
               ---
 
-              User's description of the agent they want:
+              User's description:
               {{description}}
 
+              Structural plan (follow this — do not redesign the pipeline):
+              - Overview: {{plan.overview}}
+              - Top-level kind: {{plan.topLevelKind}}
+              - Input schema: {{plan.inputSchema}}
+              - Steps: {{plan.steps}}
+              - Branching: {{plan.branching}}
+              - Data flow: {{plan.dataFlow}}
+              - Output mapping: {{plan.output}}
+
               {{#if errors}}
-              YOUR PREVIOUS YAML HAD VALIDATION ERRORS. Fix all of them:
+              YOUR PREVIOUS YAML HAD VALIDATION ERRORS. Fix all of them without
+              deviating from the plan:
               {{errors}}
 
               Your previous YAML (fix this):
               {{previousYaml}}
               {{/if}}
 
-              Generate a complete, valid YAML agent manifest. Return ONLY the YAML in the `yaml` field.
-              In the `explanation` field, briefly explain your design choices.
+              Generate a complete, valid YAML agent manifest that realizes the plan.
+              Return ONLY the YAML in the `yaml` field. In the `explanation` field,
+              briefly note how the YAML maps to the plan.
             outputSchema:
               yaml: string
               explanation: string
           input:
             schema: "{{schema}}"
             description: "{{description}}"
+            plan: "{{plan}}"
             errors: "{{validator.errors}}"
             previousYaml: "{{generator.yaml}}"
 
@@ -106,8 +188,10 @@ steps:
     input:
       description: "{{description}}"
       schema: "{{loadSchema}}"
+      plan: "{{planner}}"
 
 output:
+  plan: "{{planner}}"
   yaml: "{{buildLoop.yaml}}"
   explanation: "{{buildLoop.explanation}}"
   validation: "{{buildLoop.validation}}"

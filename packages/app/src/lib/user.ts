@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { createRunner, type Runner, type UnifiedStore } from "@agent-runner/core";
+import { createRunner, type Runner, type UnifiedStore } from "@agntz/core";
 import { getStore } from "./store";
 
 /**

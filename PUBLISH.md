@@ -5,9 +5,9 @@
 | Package | Name | Version | Scope | Built? |
 |---------|------|---------|-------|--------|
 | core | `agent-runner` | 0.1.0 | unscoped | ✅ |
-| store-postgres | `@agent-runner/store-postgres` | 0.1.0 | @agent-runner | ✅ |
-| store-sqlite | `@agent-runner/store-sqlite` | 0.1.0 | @agent-runner | ✅ |
-| studio | `@agent-runner/studio` | 0.1.0 | @agent-runner | ✅ |
+| store-postgres | `@agntz/store-postgres` | 0.1.0 | @agent-runner | ✅ |
+| store-sqlite | `@agntz/store-sqlite` | 0.1.0 | @agent-runner | ✅ |
+| studio | `@agntz/studio` | 0.1.0 | @agent-runner | ✅ |
 
 **Changesets** is already configured (`access: "public"`, GitHub changelog).
 
@@ -21,11 +21,11 @@ The unscoped name `agent-runner` is owned by `kamrynohly <kamryn@arcada.dev>` (p
 
 **Options (pick one):**
 
-- **Option A (recommended): Scope everything under `@agent-runner/`**
-  - Rename core from `agent-runner` → `@agent-runner/core`
+- **Option A (recommended): Scope everything under `@agntz/`**
+  - Rename core from `agent-runner` → `@agntz/core`
   - Consistent with the other packages
   - Requires creating the `@agent-runner` npm organization (free)
-  - Install: `npm install @agent-runner/core`
+  - Install: `npm install @agntz/core`
 
 - **Option B: Use your personal scope**
   - Rename to `@aparry3/agent-runner` (or whatever your npm username is)
@@ -83,7 +83,7 @@ npm whoami
 In `packages/core/package.json`:
 ```json
 {
-  "name": "@agent-runner/core",
+  "name": "@agntz/core",
   ...
 }
 ```
@@ -92,10 +92,10 @@ In `packages/core/package.json`:
 ```json
 {
   "peerDependencies": {
-    "@agent-runner/core": ">=0.1.0"
+    "@agntz/core": ">=0.1.0"
   },
   "devDependencies": {
-    "@agent-runner/core": "workspace:*"
+    "@agntz/core": "workspace:*"
   }
 }
 ```
@@ -178,15 +178,15 @@ npm publish --access public
 
 ```bash
 # Check each package is live:
-npm view @agent-runner/core
-npm view @agent-runner/store-postgres
-npm view @agent-runner/store-sqlite
-npm view @agent-runner/studio
+npm view @agntz/core
+npm view @agntz/store-postgres
+npm view @agntz/store-sqlite
+npm view @agntz/studio
 
 # Test install in a fresh directory:
 mkdir /tmp/test-agent-runner && cd /tmp/test-agent-runner
 npm init -y
-npm install @agent-runner/core @agent-runner/store-sqlite
+npm install @agntz/core @agntz/store-sqlite
 ```
 
 ---
@@ -194,10 +194,10 @@ npm install @agent-runner/core @agent-runner/store-sqlite
 ## Publish Order
 
 ```
-1. @agent-runner/core          (no internal deps)
-2. @agent-runner/store-postgres (depends on core)
-3. @agent-runner/store-sqlite   (depends on core)
-4. @agent-runner/studio         (depends on core)
+1. @agntz/core          (no internal deps)
+2. @agntz/store-postgres (depends on core)
+3. @agntz/store-sqlite   (depends on core)
+4. @agntz/studio         (depends on core)
 ```
 
 Packages 2-4 can be published in parallel after core is live.
@@ -211,8 +211,8 @@ Packages 2-4 can be published in parallel after core is live.
 - [ ] npm account created
 - [ ] `@agent-runner` org created on npm
 - [ ] Logged in (`npm login`)
-- [ ] Core package renamed to `@agent-runner/core`
-- [ ] Internal dep references updated (`agent-runner` → `@agent-runner/core`)
+- [ ] Core package renamed to `@agntz/core`
+- [ ] Internal dep references updated (`agent-runner` → `@agntz/core`)
 - [ ] `publishConfig.access: "public"` added to all packages
 - [ ] Repository URLs fixed (`aparry3`)
 - [ ] `pnpm build` passes

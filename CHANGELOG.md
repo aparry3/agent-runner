@@ -29,14 +29,14 @@ First complete release of agent-runner — a TypeScript SDK for defining, runnin
 - **Model provider layer** — BYOK via `ai` package (40+ providers) or custom `ModelProvider`
 - **Stores** — `MemoryStore` (testing), `JsonFileStore` (local dev)
 
-### Studio (`@agent-runner/studio`)
+### Studio (`@agntz/studio`)
 
 - **8 pages** — Agent Editor, Tool Catalog, MCP Servers, Playground, Evals Dashboard, Context Browser, Sessions, Logs
 - **Hono API server** — Full REST API auto-generated from runner stores
 - **React + Vite SPA** — Dark theme, 260KB bundle (80KB gzipped)
 - **Embeddable** — `createStudio(runner)` standalone or `studioMiddleware(runner)` for Express/Hono/Next.js
 
-### SQLite Store (`@agent-runner/store-sqlite`)
+### SQLite Store (`@agntz/store-sqlite`)
 
 - **Production-ready** — WAL mode, automatic migrations, proper indexing
 - **Full interface** — AgentStore, SessionStore, ContextStore, LogStore

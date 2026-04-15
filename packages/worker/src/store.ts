@@ -1,5 +1,5 @@
-import type { UnifiedStore } from "@agent-runner/core";
-import { MemoryStore } from "@agent-runner/core";
+import type { UnifiedStore } from "@agntz/core";
+import { MemoryStore } from "@agntz/core";
 
 let _store: UnifiedStore | null = null;
 
@@ -17,7 +17,7 @@ export async function getStore(): Promise<UnifiedStore> {
       if (!connectionString) {
         throw new Error("DATABASE_URL is required when STORE=postgres");
       }
-      const { PostgresStore } = await import("@agent-runner/store-postgres");
+      const { PostgresStore } = await import("@agntz/store-postgres");
       _store = new PostgresStore(connectionString);
       break;
     }

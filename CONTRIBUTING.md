@@ -24,11 +24,11 @@ pnpm test
 ```
 packages/
 ├── core/           # "agent-runner" — the main SDK
-├── manifest/       # "@agent-runner/manifest" — YAML agent executor
-├── store-sqlite/   # "@agent-runner/store-sqlite" — SQLite adapter
-├── store-postgres/ # "@agent-runner/store-postgres" — Postgres adapter (multi-tenant)
-├── worker/         # "@agent-runner/worker" — Hono HTTP worker
-└── app/            # "@agent-runner/app" — Next.js multi-tenant UI
+├── manifest/       # "@agntz/manifest" — YAML agent executor
+├── store-sqlite/   # "@agntz/store-sqlite" — SQLite adapter
+├── store-postgres/ # "@agntz/store-postgres" — Postgres adapter (multi-tenant)
+├── worker/         # "@agntz/worker" — Hono HTTP worker
+└── app/            # "@agntz/app" — Next.js multi-tenant UI
 ```
 
 ## Development
@@ -38,8 +38,8 @@ packages/
 cd packages/core && pnpm dev
 
 # Run the hosted UI + worker locally
-pnpm --filter @agent-runner/worker dev    # terminal 1
-pnpm --filter @agent-runner/app dev       # terminal 2
+pnpm --filter @agntz/worker dev    # terminal 1
+pnpm --filter @agntz/app dev       # terminal 2
 
 # Run specific tests
 cd packages/core && pnpm vitest run tests/runner.test.ts
@@ -60,7 +60,7 @@ Want to add a new store (Redis, DynamoDB, etc.)? Follow the pattern in `packages
 
 1. Implement the store interfaces from `agent-runner` (AgentStore, SessionStore, ContextStore, LogStore)
 2. Run the shared contract test suite against your implementation
-3. Publish as `@agent-runner/store-{name}`
+3. Publish as `@agntz/store-{name}`
 
 ## Pull Requests
 

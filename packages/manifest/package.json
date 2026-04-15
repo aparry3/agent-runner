@@ -1,5 +1,5 @@
 {
-  "name": "@agent-runner/manifest",
+  "name": "@agntz/manifest",
   "version": "0.1.0",
   "description": "YAML manifest engine for agent-runner: parser, template engine, state management, and pipeline execution",
   "type": "module",
@@ -32,10 +32,10 @@
     "yaml": "^2.8.0"
   },
   "peerDependencies": {
-    "@agent-runner/core": "workspace:*"
+    "@agntz/core": "workspace:*"
   },
   "devDependencies": {
-    "@agent-runner/core": "workspace:*",
+    "@agntz/core": "workspace:*",
     "@biomejs/biome": "^1.9.0",
     "@types/node": "^22.0.0",
     "tsup": "^8.5.0",

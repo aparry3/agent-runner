@@ -1,6 +1,6 @@
-# @agent-runner/app
+# @agntz/app
 
-Hosted web UI for agent-runner. Next.js 15 App Router + Tailwind + Clerk auth + per-user data scoping. Pairs with `@agent-runner/worker` for agent execution.
+Hosted web UI for agent-runner. Next.js 15 App Router + Tailwind + Clerk auth + per-user data scoping. Pairs with `@agntz/worker` for agent execution.
 
 ## Features
 
@@ -59,8 +59,8 @@ OPENAI_API_KEY=sk-...   # or any provider you use
 ### 4. Run
 
 ```bash
-pnpm --filter @agent-runner/worker dev    # :4001
-pnpm --filter @agent-runner/app dev       # :3000
+pnpm --filter @agntz/worker dev    # :4001
+pnpm --filter @agntz/app dev       # :3000
 ```
 
 Sign up at http://localhost:3000, then create an agent.
@@ -89,6 +89,6 @@ Planned: Vercel (app) + Railway (worker) + Neon (Postgres) on `agntz.co`. See th
 
 | Package | Description |
 |---|---|
-| [`@agent-runner/core`](../core) | The underlying SDK |
-| [`@agent-runner/worker`](../worker) | Hono HTTP worker consumed by this app |
-| [`@agent-runner/store-postgres`](../store-postgres) | Production store used in deployment |
+| [`@agntz/core`](../core) | The underlying SDK |
+| [`@agntz/worker`](../worker) | Hono HTTP worker consumed by this app |
+| [`@agntz/store-postgres`](../store-postgres) | Production store used in deployment |

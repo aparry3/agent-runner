@@ -236,7 +236,7 @@ async function scaffoldProject(cwd: string, opts: InitOptions) {
         playground: "agent-runner playground",
       },
       dependencies: {
-        "@agent-runner/core": "^0.1.0",
+        "@agntz/core": "^0.1.0",
         zod: "^3.23.0",
       },
       devDependencies: {
@@ -364,8 +364,8 @@ function getSystemPrompt(template: string): string {
 function generateConfig(template: string, provider: string, model: string): string {
   switch (template) {
     case "chatbot":
-      return `import { createRunner, defineAgent } from "@agent-runner/core";
-import { JsonFileStore } from "@agent-runner/core";
+      return `import { createRunner, defineAgent } from "@agntz/core";
+import { JsonFileStore } from "@agntz/core";
 
 const runner = createRunner({
   store: new JsonFileStore("./data"),
@@ -391,8 +391,8 @@ export default runner;
 `;
 
     case "tools":
-      return `import { createRunner, defineAgent } from "@agent-runner/core";
-import { JsonFileStore } from "@agent-runner/core";
+      return `import { createRunner, defineAgent } from "@agntz/core";
+import { JsonFileStore } from "@agntz/core";
 import { getTime, calculate } from "./src/tools.js";
 
 const runner = createRunner({
@@ -418,8 +418,8 @@ export default runner;
 `;
 
     case "multi-agent":
-      return `import { createRunner, defineAgent } from "@agent-runner/core";
-import { JsonFileStore } from "@agent-runner/core";
+      return `import { createRunner, defineAgent } from "@agntz/core";
+import { JsonFileStore } from "@agntz/core";
 
 const runner = createRunner({
   store: new JsonFileStore("./data"),
@@ -464,7 +464,7 @@ export default runner;
 `;
 
     default: // minimal
-      return `import { createRunner, defineAgent } from "@agent-runner/core";
+      return `import { createRunner, defineAgent } from "@agntz/core";
 
 const runner = createRunner({
   defaults: {
@@ -485,7 +485,7 @@ export default runner;
 }
 
 function generateToolsFile(template: string, _provider: string, _model: string): string {
-  return `import { defineTool } from "@agent-runner/core";
+  return `import { defineTool } from "@agntz/core";
 import { z } from "zod";
 
 /**

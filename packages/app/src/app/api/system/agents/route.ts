@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUserContext, AuthRequiredError } from "@/lib/user";
 import { ForbiddenError, requireSuperAdmin } from "@/lib/admin";
-import { listSystemAgents } from "@agent-runner/worker";
+import { listSystemAgents } from "@agntz/worker";
 
 export async function GET() {
   try {

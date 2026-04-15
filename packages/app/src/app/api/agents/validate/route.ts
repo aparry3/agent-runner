@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateManifest } from "@agent-runner/manifest";
+import { validateManifest } from "@agntz/manifest";
 
 export async function POST(req: NextRequest) {
   try {

@@ -1,5 +1,5 @@
 {
-  "name": "@agent-runner/store-postgres",
+  "name": "@agntz/store-postgres",
   "version": "0.1.1",
   "description": "PostgreSQL store adapter for agent-runner — multi-server production storage",
   "type": "module",
@@ -26,14 +26,14 @@
     "pg": "^8.20.0"
   },
   "devDependencies": {
-    "@agent-runner/core": "workspace:*",
+    "@agntz/core": "workspace:*",
     "@types/pg": "^8.11.0",
     "tsup": "^8.5.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
   },
   "peerDependencies": {
-    "@agent-runner/core": ">=0.1.2"
+    "@agntz/core": ">=0.1.2"
   },
   "keywords": [
     "agent-runner",
