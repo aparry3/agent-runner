@@ -1,4 +1,4 @@
-import { listToolsOnServer, type Runner } from "@agntz/core";
+import { listToolsOnServer, resolveMCPServer, type Runner } from "@agntz/core";
 import { LOCAL_TOOL_NAMES } from "@agntz/worker";
 import type { ValidationContext } from "@agntz/manifest";
 
@@ -11,9 +11,11 @@ export interface BuildValidationContextOptions {
 
 /**
  * Build a ValidationContext for the manifest validator.
- * resolveTools opens a one-shot MCP connection per unique server URL
- * (memoized within this context instance so a manifest that references the
- * same server multiple times only pays the connect cost once).
+ *
+ * `resolveTools` accepts either a registered MCP connection id (e.g. `gymtext`)
+ * or a raw URL. Registered connections win; unknown refs fall back to being
+ * treated as URLs. Results are memoized per resolved URL so a manifest that
+ * references the same server by different refs only pays one connect cost.
  */
 export function buildValidationContext(
   runner: Runner,
@@ -28,14 +30,18 @@ export function buildValidationContext(
       const agent = await runner.agents.getAgent(id);
       return agent != null;
     },
-    resolveTools: (server: string) => {
-      const cached = toolCache.get(server);
+    resolveTools: async (ref: string) => {
+      const connections = runner.connections;
+      const resolved = connections
+        ? await resolveMCPServer(ref, connections)
+        : { url: ref, source: "url" as const };
+      const cached = toolCache.get(resolved.url);
       if (cached) return cached;
       const promise = listToolsOnServer(
-        { url: server },
+        { url: resolved.url, headers: resolved.headers },
         { timeoutMs: options.mcpTimeoutMs ?? 10_000 },
       );
-      toolCache.set(server, promise);
+      toolCache.set(resolved.url, promise);
       return promise;
     },
   };

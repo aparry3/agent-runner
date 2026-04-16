@@ -18,6 +18,7 @@ import type {
   ContextStore,
   LogStore,
   ProviderStore,
+  ConnectionStore,
   ModelProvider,
 } from "./types.js";
 import { ToolRegistry } from "./tool.js";
@@ -28,6 +29,7 @@ import { trimHistoryWithSummary } from "./utils/summarize.js";
 import { generateInvocationId } from "./utils/id.js";
 import { MCPClientManager } from "./mcp/client-manager.js";
 import type { MCPTool } from "./mcp/client-manager.js";
+import { resolveMCPServer as resolveMCPServerHelper } from "./mcp/resolve-server.js";
 import {
   AgentNotFoundError,
   InvocationCancelledError,
@@ -59,6 +61,7 @@ export class Runner {
   private contextStore: ContextStore;
   private logStore: LogStore;
   private _providerStore: ProviderStore | undefined;
+  private _connectionStore: ConnectionStore | undefined;
   private modelProvider: ModelProvider;
   private toolRegistry: ToolRegistry;
   private mcpManager: MCPClientManager | null = null;
@@ -90,6 +93,9 @@ export class Runner {
     const unifiedStore = config.store;
     this._providerStore = unifiedStore && "getProvider" in unifiedStore
       ? unifiedStore as ProviderStore
+      : undefined;
+    this._connectionStore = unifiedStore && "getConnection" in unifiedStore
+      ? unifiedStore as ConnectionStore
       : undefined;
     this.modelProvider = config.modelProvider ?? new AISDKModelProvider({
       providerStore: this._providerStore,
@@ -141,6 +147,8 @@ export class Runner {
   get logs(): LogStore { return this.logStore; }
   /** Access the provider store (if available) */
   get providers(): ProviderStore | undefined { return this._providerStore; }
+  /** Access the connection store (if available) */
+  get connections(): ConnectionStore | undefined { return this._connectionStore; }
   /** Access the model provider */
   get model(): ModelProvider { return this.modelProvider; }
   /** Access the runner config */
@@ -361,7 +369,7 @@ export class Runner {
         extraContext: options.extraContext,
       });
 
-      const availableTools = self.resolveToolsForAgent(agent);
+      const availableTools = await self.resolveToolsForAgent(agent);
       const allToolCalls: ToolCallRecord[] = [];
       const totalUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
       let finalOutput = "";
@@ -663,7 +671,7 @@ export class Runner {
       });
 
       // Resolve available tools for this agent
-      const availableTools = this.resolveToolsForAgent(agent);
+      const availableTools = await this.resolveToolsForAgent(agent);
 
       // Execute the agent loop (model → tools → repeat)
       const allToolCalls: ToolCallRecord[] = [];
@@ -884,12 +892,25 @@ export class Runner {
    * Returns tool metadata for the model AND registers ephemeral tools
    * in the registry so they can be executed during the invoke loop.
    */
-  private resolveToolsForAgent(agent: AgentDefinition): Array<{
+  private async resolveToolsForAgent(agent: AgentDefinition): Promise<Array<{
     name: string;
     description: string;
     parameters: Record<string, unknown>;
-  }> {
+  }>> {
     if (!agent.tools?.length) return [];
+
+    // Ensure every referenced MCP server is connected (resolving registered
+    // connection names to urls/headers) before we ask for its tools.
+    const mcpRefs = Array.from(
+      new Set(
+        agent.tools
+          .filter((r): r is Extract<typeof r, { type: "mcp" }> => r.type === "mcp")
+          .map((r) => r.server),
+      ),
+    );
+    for (const ref of mcpRefs) {
+      await this.ensureMCPServerRegistered(ref);
+    }
 
     const resolved: Array<{
       name: string;
@@ -919,6 +940,28 @@ export class Runner {
     }
 
     return resolved;
+  }
+
+  /**
+   * Lazily connect to an MCP server referenced by an agent. Looks up the ref
+   * in the user's ConnectionStore (registered name → url/headers); falls back
+   * to treating the ref as a URL. Keyed by the raw ref so resolveMCPTools can
+   * look up tools by `entry.server` unchanged.
+   */
+  private async ensureMCPServerRegistered(ref: string): Promise<void> {
+    if (!this.mcpManager) {
+      this.mcpManager = new MCPClientManager({});
+    }
+    if (this.mcpManager.hasServer(ref)) return;
+
+    const resolved = this._connectionStore
+      ? await resolveMCPServerHelper(ref, this._connectionStore)
+      : { url: ref, headers: undefined as Record<string, string> | undefined };
+
+    await this.mcpManager.addServer(ref, {
+      url: resolved.url,
+      headers: resolved.headers,
+    });
   }
 
   /**

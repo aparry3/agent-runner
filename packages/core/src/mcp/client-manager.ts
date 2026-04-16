@@ -45,6 +45,35 @@ export class MCPClientManager {
   constructor(private servers: Record<string, MCPServerConfig>) {}
 
   /**
+   * Add (or replace) a server and connect it immediately. Safe to call after
+   * `initialize()` for dynamically-registered servers.
+   */
+  async addServer(name: string, config: MCPServerConfig): Promise<void> {
+    this.servers[name] = config;
+    const existing = this.connections.get(name);
+    if (existing?.connected && existing.client) {
+      try { await existing.client.close(); } catch { /* ignore */ }
+    }
+    try {
+      await this.connectServer(name, config);
+    } catch (err) {
+      this.connections.set(name, {
+        serverName: name,
+        config,
+        tools: [],
+        connected: false,
+        error: err instanceof Error ? err.message : String(err),
+        client: null,
+        transport: null,
+      });
+    }
+  }
+
+  hasServer(name: string): boolean {
+    return this.connections.has(name);
+  }
+
+  /**
    * Connect to all configured MCP servers and discover tools.
    */
   async initialize(): Promise<void> {

@@ -21,6 +21,8 @@ export { createMCPServer } from "./mcp/server.js";
 export type { MCPServerOptions } from "./mcp/server.js";
 export { listToolsOnServer } from "./mcp/list-tools.js";
 export type { ListToolsOptions } from "./mcp/list-tools.js";
+export { resolveMCPServer } from "./mcp/resolve-server.js";
+export type { ResolvedMCPServer } from "./mcp/resolve-server.js";
 
 // Telemetry
 export { Telemetry } from "./telemetry.js";
@@ -106,6 +108,11 @@ export type {
   LogStore,
   ProviderStore,
   ProviderConfig,
+  ConnectionStore,
+  Connection,
+  ConnectionKind,
+  ConnectionConfig,
+  MCPConnectionConfig,
   ApiKeyStore,
   ApiKeyRecord,
   ScopableStore,

@@ -6,6 +6,9 @@ import type {
   ProviderConfig,
   UnifiedStore,
   ApiKeyRecord,
+  Connection,
+  ConnectionKind,
+  ConnectionConfig,
   Message,
   SessionSummary,
   ContextEntry,
@@ -128,6 +131,23 @@ const MIGRATIONS = [
   CREATE INDEX IF NOT EXISTS idx_invocation_logs_user ON invocation_logs(user_id);
 
   UPDATE schema_version SET version = 3;
+  `,
+  // v4: User-scoped connections (MCP servers today; more kinds later).
+  `
+  CREATE TABLE IF NOT EXISTS connections (
+    user_id      TEXT NOT NULL,
+    kind         TEXT NOT NULL,
+    id           TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    description  TEXT,
+    config       TEXT NOT NULL,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, kind, id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_connections_user_kind ON connections(user_id, kind);
+
+  UPDATE schema_version SET version = 4;
   `,
 ];
 
@@ -599,6 +619,116 @@ export class SqliteStore implements UnifiedStore {
     this.db.prepare("DELETE FROM providers WHERE user_id = ? AND id = ?").run(u, id);
   }
 
+  // ═══ ConnectionStore ═══
+
+  async getConnection(kind: ConnectionKind, id: string): Promise<Connection | null> {
+    const u = this.requireUser();
+    const row = this.db
+      .prepare(
+        `SELECT id, kind, display_name, description, config, created_at, updated_at
+         FROM connections
+         WHERE user_id = ? AND kind = ? AND id = ?`
+      )
+      .get(u, kind, id) as
+      | {
+          id: string;
+          kind: string;
+          display_name: string;
+          description: string | null;
+          config: string;
+          created_at: string;
+          updated_at: string;
+        }
+      | undefined;
+    if (!row) return null;
+    return sqliteRowToConnection(row);
+  }
+
+  async listConnections(kind?: ConnectionKind): Promise<Connection[]> {
+    const u = this.requireUser();
+    const rows = kind
+      ? (this.db
+          .prepare(
+            `SELECT id, kind, display_name, description, config, created_at, updated_at
+             FROM connections WHERE user_id = ? AND kind = ? ORDER BY kind, id`
+          )
+          .all(u, kind) as Array<{
+          id: string;
+          kind: string;
+          display_name: string;
+          description: string | null;
+          config: string;
+          created_at: string;
+          updated_at: string;
+        }>)
+      : (this.db
+          .prepare(
+            `SELECT id, kind, display_name, description, config, created_at, updated_at
+             FROM connections WHERE user_id = ? ORDER BY kind, id`
+          )
+          .all(u) as Array<{
+          id: string;
+          kind: string;
+          display_name: string;
+          description: string | null;
+          config: string;
+          created_at: string;
+          updated_at: string;
+        }>);
+    return rows.map(sqliteRowToConnection);
+  }
+
+  async putConnection(connection: Connection): Promise<void> {
+    const u = this.requireUser();
+    const now = new Date().toISOString();
+    const existing = this.db
+      .prepare(
+        `SELECT 1 FROM connections WHERE user_id = ? AND kind = ? AND id = ?`
+      )
+      .get(u, connection.kind, connection.id);
+    if (existing) {
+      this.db
+        .prepare(
+          `UPDATE connections
+           SET display_name = ?, description = ?, config = ?, updated_at = ?
+           WHERE user_id = ? AND kind = ? AND id = ?`
+        )
+        .run(
+          connection.displayName,
+          connection.description ?? null,
+          JSON.stringify(connection.config),
+          now,
+          u,
+          connection.kind,
+          connection.id
+        );
+    } else {
+      this.db
+        .prepare(
+          `INSERT INTO connections
+             (user_id, kind, id, display_name, description, config, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          u,
+          connection.kind,
+          connection.id,
+          connection.displayName,
+          connection.description ?? null,
+          JSON.stringify(connection.config),
+          now,
+          now
+        );
+    }
+  }
+
+  async deleteConnection(kind: ConnectionKind, id: string): Promise<void> {
+    const u = this.requireUser();
+    this.db
+      .prepare("DELETE FROM connections WHERE user_id = ? AND kind = ? AND id = ?")
+      .run(u, kind, id);
+  }
+
   // ═══ ApiKeyStore (unscoped) ═══
 
   async createApiKey(params: { userId: string; name: string }): Promise<{ record: ApiKeyRecord; rawKey: string }> {
@@ -718,6 +848,26 @@ function rowToLog(r: LogRow): InvocationLog {
     model: r.model,
     error: r.error ?? undefined,
     timestamp: r.timestamp,
+  };
+}
+
+function sqliteRowToConnection(r: {
+  id: string;
+  kind: string;
+  display_name: string;
+  description: string | null;
+  config: string;
+  created_at: string;
+  updated_at: string;
+}): Connection {
+  return {
+    id: r.id,
+    kind: r.kind as ConnectionKind,
+    displayName: r.display_name,
+    description: r.description ?? undefined,
+    config: JSON.parse(r.config) as ConnectionConfig,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
   };
 }
 

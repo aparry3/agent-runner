@@ -15,6 +15,7 @@ const primaryLinks = [
 const secondaryLinks = [
   { href: "/settings", label: "Settings" },
   { href: "/settings/api-keys", label: "API Keys" },
+  { href: "/settings/connections", label: "Connections" },
 ];
 
 export function AppSidebar() {

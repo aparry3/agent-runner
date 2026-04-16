@@ -406,6 +406,34 @@ export interface ProviderStore {
   deleteProvider(id: string): Promise<void>;
 }
 
+// Kinds grow as we add more; `config` is a discriminated union below.
+export type ConnectionKind = "mcp";
+
+export interface MCPConnectionConfig {
+  url: string;
+  headers?: Record<string, string>;
+}
+
+export type ConnectionConfig = MCPConnectionConfig;
+
+export interface Connection {
+  /** Unique per (userId, kind). For kind="mcp", this is the YAML reference. */
+  id: string;
+  kind: ConnectionKind;
+  displayName: string;
+  description?: string;
+  config: ConnectionConfig;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConnectionStore {
+  getConnection(kind: ConnectionKind, id: string): Promise<Connection | null>;
+  listConnections(kind?: ConnectionKind): Promise<Connection[]>;
+  putConnection(connection: Connection): Promise<void>;
+  deleteConnection(kind: ConnectionKind, id: string): Promise<void>;
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Multi-tenancy: per-user scoping + API keys
 // ═══════════════════════════════════════════════════════════════════════
@@ -450,6 +478,7 @@ export type UnifiedStore = AgentStore &
   ContextStore &
   LogStore &
   ProviderStore &
+  ConnectionStore &
   ApiKeyStore &
   ScopableStore;
 

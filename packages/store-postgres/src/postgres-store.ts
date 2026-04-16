@@ -5,6 +5,9 @@ import type {
   ProviderConfig,
   UnifiedStore,
   ApiKeyRecord,
+  Connection,
+  ConnectionKind,
+  ConnectionConfig,
   Message,
   SessionSummary,
   ContextEntry,
@@ -162,6 +165,23 @@ const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_ar_invocation_logs_user ON ar_invocation_logs(user_id);
 
   UPDATE ar_schema_version SET version = 4;
+  `,
+  // v5: User-scoped connections (MCP servers today; more kinds later).
+  `
+  CREATE TABLE IF NOT EXISTS ar_connections (
+    user_id      TEXT NOT NULL,
+    kind         TEXT NOT NULL,
+    id           TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    description  TEXT,
+    config       JSONB NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, kind, id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_ar_connections_user_kind ON ar_connections(user_id, kind);
+
+  UPDATE ar_schema_version SET version = 5;
   `,
 ];
 
@@ -666,6 +686,72 @@ export class PostgresStore implements UnifiedStore {
     );
   }
 
+  // ═══ ConnectionStore ═══
+
+  async getConnection(kind: ConnectionKind, id: string): Promise<Connection | null> {
+    await this.ensureMigrated();
+    const u = this.requireUser();
+    const { rows } = await this.pool.query(
+      `SELECT id, kind, display_name, description, config, created_at, updated_at
+       FROM ${this.t("connections")}
+       WHERE user_id = $1 AND kind = $2 AND id = $3`,
+      [u, kind, id]
+    );
+    if (rows.length === 0) return null;
+    return rowToConnection(rows[0]);
+  }
+
+  async listConnections(kind?: ConnectionKind): Promise<Connection[]> {
+    await this.ensureMigrated();
+    const u = this.requireUser();
+    const params: unknown[] = [u];
+    let where = "WHERE user_id = $1";
+    if (kind) {
+      params.push(kind);
+      where += " AND kind = $2";
+    }
+    const { rows } = await this.pool.query(
+      `SELECT id, kind, display_name, description, config, created_at, updated_at
+       FROM ${this.t("connections")}
+       ${where}
+       ORDER BY kind, id`,
+      params
+    );
+    return rows.map(rowToConnection);
+  }
+
+  async putConnection(connection: Connection): Promise<void> {
+    await this.ensureMigrated();
+    const u = this.requireUser();
+    await this.pool.query(
+      `INSERT INTO ${this.t("connections")}
+         (user_id, kind, id, display_name, description, config, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+       ON CONFLICT (user_id, kind, id) DO UPDATE SET
+         display_name = EXCLUDED.display_name,
+         description = EXCLUDED.description,
+         config = EXCLUDED.config,
+         updated_at = NOW()`,
+      [
+        u,
+        connection.kind,
+        connection.id,
+        connection.displayName,
+        connection.description ?? null,
+        JSON.stringify(connection.config),
+      ]
+    );
+  }
+
+  async deleteConnection(kind: ConnectionKind, id: string): Promise<void> {
+    await this.ensureMigrated();
+    const u = this.requireUser();
+    await this.pool.query(
+      `DELETE FROM ${this.t("connections")} WHERE user_id = $1 AND kind = $2 AND id = $3`,
+      [u, kind, id]
+    );
+  }
+
   // ═══ ApiKeyStore (unscoped admin) ═══
 
   async createApiKey(params: { userId: string; name: string }): Promise<{ record: ApiKeyRecord; rawKey: string }> {
@@ -761,6 +847,30 @@ function rowToInvocationLog(r: {
     model: r.model,
     error: r.error ?? undefined,
     timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
+  };
+}
+
+function rowToConnection(r: {
+  id: string;
+  kind: string;
+  display_name: string;
+  description: string | null;
+  config: ConnectionConfig | string;
+  created_at: Date | string;
+  updated_at: Date | string;
+}): Connection {
+  const toIso = (v: Date | string) =>
+    v instanceof Date ? v.toISOString() : String(v);
+  // pg returns JSONB as already-parsed objects, but accept strings defensively.
+  const cfg = typeof r.config === "string" ? JSON.parse(r.config) : r.config;
+  return {
+    id: r.id,
+    kind: r.kind as ConnectionKind,
+    displayName: r.display_name,
+    description: r.description ?? undefined,
+    config: cfg,
+    createdAt: toIso(r.created_at),
+    updatedAt: toIso(r.updated_at),
   };
 }
 

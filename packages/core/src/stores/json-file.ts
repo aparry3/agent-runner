@@ -7,6 +7,8 @@ import type {
   ProviderConfig,
   UnifiedStore,
   ApiKeyRecord,
+  Connection,
+  ConnectionKind,
   Message,
   SessionSummary,
   ContextEntry,
@@ -75,6 +77,7 @@ export class JsonFileStore implements UnifiedStore {
     await mkdir(join(root, "context"), { recursive: true });
     await mkdir(join(root, "logs"), { recursive: true });
     await mkdir(join(root, "providers"), { recursive: true });
+    await mkdir(join(root, "connections"), { recursive: true });
   }
 
   private async readJson<T>(path: string): Promise<T | null> {
@@ -349,6 +352,53 @@ export class JsonFileStore implements UnifiedStore {
   async deleteProvider(id: string): Promise<void> {
     await this.ensureUserDirs();
     await unlink(this.providerPath(id)).catch(() => {});
+  }
+
+  // ═══ ConnectionStore ═══
+
+  private connectionPath(kind: ConnectionKind, id: string): string {
+    return join(
+      this.userRoot(),
+      "connections",
+      `${this.sanitizeFilename(kind)}__${this.sanitizeFilename(id)}.json`,
+    );
+  }
+
+  async getConnection(kind: ConnectionKind, id: string): Promise<Connection | null> {
+    await this.ensureUserDirs();
+    return this.readJson<Connection>(this.connectionPath(kind, id));
+  }
+
+  async listConnections(kind?: ConnectionKind): Promise<Connection[]> {
+    await this.ensureUserDirs();
+    const dir = join(this.userRoot(), "connections");
+    const files = await readdir(dir).catch(() => []);
+    const result: Connection[] = [];
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      const c = await this.readJson<Connection>(join(dir, file));
+      if (c && (!kind || c.kind === kind)) result.push(c);
+    }
+    result.sort((a, b) => (a.kind + a.id).localeCompare(b.kind + b.id));
+    return result;
+  }
+
+  async putConnection(connection: Connection): Promise<void> {
+    await this.ensureUserDirs();
+    const existing = await this.readJson<Connection>(
+      this.connectionPath(connection.kind, connection.id),
+    );
+    const now = new Date().toISOString();
+    await this.writeJson(this.connectionPath(connection.kind, connection.id), {
+      ...connection,
+      createdAt: existing?.createdAt ?? connection.createdAt ?? now,
+      updatedAt: now,
+    });
+  }
+
+  async deleteConnection(kind: ConnectionKind, id: string): Promise<void> {
+    await this.ensureUserDirs();
+    await unlink(this.connectionPath(kind, id)).catch(() => {});
   }
 
   // ═══ ApiKeyStore (unscoped) ═══

@@ -4,6 +4,8 @@ import type {
   ProviderConfig,
   UnifiedStore,
   ApiKeyRecord,
+  Connection,
+  ConnectionKind,
   Message,
   SessionSummary,
   ContextEntry,
@@ -45,6 +47,7 @@ interface MemoryBackend {
   contexts: Map<string, { userId: string; entries: ContextEntry[] }>;
   logs: Array<{ userId: string; log: InvocationLog }>;
   providers: Map<string, Map<string, ProviderConfig>>;      // userId -> providerId -> config
+  connections: Map<string, Map<string, Connection>>;        // userId -> `${kind}:${id}` -> connection
   apiKeys: Map<string, ApiKeyRow>;                          // id -> row
   apiKeyByHash: Map<string, ApiKeyRow>;                     // sha256(rawKey) -> row
 }
@@ -56,6 +59,7 @@ function createBackend(): MemoryBackend {
     contexts: new Map(),
     logs: [],
     providers: new Map(),
+    connections: new Map(),
     apiKeys: new Map(),
     apiKeyByHash: new Map(),
   };
@@ -315,6 +319,42 @@ export class MemoryStore implements UnifiedStore {
 
   async deleteProvider(id: string): Promise<void> {
     this.providerMap().delete(id);
+  }
+
+  // ═══ ConnectionStore ═══
+
+  private connectionMap(): Map<string, Connection> {
+    const u = this.requireUser();
+    let m = this.backend.connections.get(u);
+    if (!m) {
+      m = new Map();
+      this.backend.connections.set(u, m);
+    }
+    return m;
+  }
+
+  async getConnection(kind: ConnectionKind, id: string): Promise<Connection | null> {
+    return this.connectionMap().get(`${kind}:${id}`) ?? null;
+  }
+
+  async listConnections(kind?: ConnectionKind): Promise<Connection[]> {
+    const all = Array.from(this.connectionMap().values());
+    const filtered = kind ? all.filter((c) => c.kind === kind) : all;
+    return filtered.sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  async putConnection(connection: Connection): Promise<void> {
+    const now = new Date().toISOString();
+    const existing = this.connectionMap().get(`${connection.kind}:${connection.id}`);
+    this.connectionMap().set(`${connection.kind}:${connection.id}`, {
+      ...connection,
+      createdAt: existing?.createdAt ?? connection.createdAt ?? now,
+      updatedAt: now,
+    });
+  }
+
+  async deleteConnection(kind: ConnectionKind, id: string): Promise<void> {
+    this.connectionMap().delete(`${kind}:${id}`);
   }
 
   // ═══ ApiKeyStore (unscoped admin) ═══
