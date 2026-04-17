@@ -5,7 +5,7 @@ import { createWorkerAPI } from "./routes.js";
 import { getStore } from "./store.js";
 
 const port = Number(process.env.PORT ?? 4001);
-const hostname = process.env.HOSTNAME ?? "0.0.0.0";
+const hostname = process.env.HOST ?? "0.0.0.0";
 
 const internalSecret = process.env.WORKER_INTERNAL_SECRET;
 if (!internalSecret) {
