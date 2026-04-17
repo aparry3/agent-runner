@@ -2,7 +2,7 @@ services:
   app:
     build:
       context: .
-      target: app
+      dockerfile: Dockerfile.app
     ports:
       - "3000:3000"
     env_file:
@@ -19,14 +19,14 @@ services:
   site:
     build:
       context: .
-      target: site
+      dockerfile: Dockerfile.site
     ports:
       - "3001:3001"
 
   worker:
     build:
       context: .
-      target: worker
+      dockerfile: Dockerfile.worker
     ports:
       - "4001:4001"
     env_file:
